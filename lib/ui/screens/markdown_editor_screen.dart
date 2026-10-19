@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
-import 'package:superthai/question_type/pages/take/info_take_page.dart';
+import 'package:superthai/features/lessons/presentation/question_types/take/info_take_page.dart';
 
 class MarkdownEditorScreen extends StatefulWidget {
   final String initialContent;

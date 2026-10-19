@@ -1,1 +1,25 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"superthai-72184","appId":"1:701994356841:android:29343dea2c8a1656aed2f8","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"superthai-72184","configurations":{"android":"1:701994356841:android:29343dea2c8a1656aed2f8","ios":"1:701994356841:ios:1354bbee9486550faed2f8"}}}}}}
+{
+    "flutter":  {
+                    "platforms":  {
+                                      "android":  {
+                                                      "default":  {
+                                                                      "projectId":  "superthai-72184",
+                                                                      "appId":  "1:701994356841:android:29343dea2c8a1656aed2f8",
+                                                                      "fileOutput":  "android/app/google-services.json"
+                                                                  }
+                                                  },
+                                      "dart":  {
+                                                   "lib/firebase_options.dart":  {
+                                                                                     "projectId":  "superthai-72184",
+                                                                                     "configurations":  {
+                                                                                                            "android":  "1:701994356841:android:29343dea2c8a1656aed2f8",
+                                                                                                            "ios":  "1:701994356841:ios:1354bbee9486550faed2f8"
+                                                                                                        }
+                                                                                 }
+                                               }
+                                  }
+                },
+    "firestore":  {
+                      "rules":  "firestore.rules"
+                  }
+}

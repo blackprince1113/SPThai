@@ -62,38 +62,43 @@ class LessonViewModel extends ChangeNotifier {
   }
 
   Future<void> _generateSteps() async {
-    LessonPlan? plan;
-    if (lessonId != null) {
-      final allPlans = await DataService.instance.getAllLessonPlans();
-      plan = allPlans.where((p) => p.id == lessonId).firstOrNull;
-    }
+    try {
+      LessonPlan? plan;
+      if (lessonId != null) {
+        plan = await DataService.instance.getLessonPlanById(lessonId!);
+      }
 
-    plan ??= await DataService.instance.getLessonPlanByCategory(category);
+      plan ??= await DataService.instance.getLessonPlanByCategory(category);
 
-    if (plan != null) {
-      _currentPlan = plan;
-      _resolvedId = plan.id;
-      for (int i = 0; i < plan.steps.length; i++) {
-        var stepData = plan.steps[i];
-        if (stepData.thai.isNotEmpty ||
-            stepData.english.isNotEmpty ||
-            stepData.question.isNotEmpty ||
-            stepData.answer.isNotEmpty ||
-            (stepData.conversation != null && stepData.conversation!.isNotEmpty)) {
-          _steps.add(
-            LessonStep(
-              word: stepData.toWordEntry(),
-              type: _mapType(stepData.type),
-              sentence: stepData.toExampleSentence(),
-              rawData: stepData,
-              originalIndex: i,
-            ),
-          );
+      if (plan != null) {
+        _currentPlan = plan;
+        _resolvedId = plan.id;
+        for (int i = 0; i < plan.steps.length; i++) {
+          final stepData = plan.steps[i];
+          if (stepData.thai.isNotEmpty ||
+              stepData.english.isNotEmpty ||
+              stepData.question.isNotEmpty ||
+              stepData.answer.isNotEmpty ||
+              (stepData.conversation != null &&
+                  stepData.conversation!.isNotEmpty)) {
+            _steps.add(
+              LessonStep(
+                word: stepData.toWordEntry(),
+                type: _mapType(stepData.type),
+                sentence: stepData.toExampleSentence(),
+                rawData: stepData,
+                originalIndex: i,
+              ),
+            );
+          }
         }
       }
+    } catch (error, stackTrace) {
+      debugPrint('Failed to load lesson: $error\n$stackTrace');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-    _isLoading = false;
-    notifyListeners();
   }
 
   LessonType _mapType(String type) {
@@ -165,6 +170,7 @@ class LessonViewModel extends ChangeNotifier {
           ProgressService.instance.markStepAsCompleted(
             idToSave,
             currentStep.originalIndex,
+            stepId: currentStep.rawData?.id,
           );
         }
       } else {

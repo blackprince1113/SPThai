@@ -84,6 +84,8 @@ class UnitHeaderCard extends StatelessWidget {
                 ),
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.bold,
@@ -257,8 +259,7 @@ class MapPathPainter extends CustomPainter {
 
     final paint = Paint()
       ..color = color
-      ..strokeWidth =
-      12
+      ..strokeWidth = 12
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round;

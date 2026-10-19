@@ -7,7 +7,7 @@ import 'package:superthai/ui/widgets/shared_widgets.dart';
 
 import 'package:superthai/ui/screens/login_screen.dart';
 import 'package:superthai/ui/screens/edit_profile_screen.dart';
-import 'package:superthai/ui/screens/manage_lessons_screen.dart';
+import 'package:superthai/features/lessons/presentation/screens/manage_lessons_screen.dart';
 import 'package:superthai/ui/screens/add_admin_screen.dart';
 
 class SettingsScreen extends StatelessWidget {

@@ -15,7 +15,9 @@ class AppTheme {
   static const Color darkTextColor = Color(0xFFF5F5F5);
 
   static const Color editModeColor = Color(0xFF004D40);
-  static final Color editModeLightColor = const Color(0xFF004D40).withValues(alpha: 0.1);
+  static final Color editModeLightColor = const Color(
+    0xFF004D40,
+  ).withValues(alpha: 0.1);
 
   static ThemeData getLightTheme(Color primary) {
     return ThemeData(
@@ -97,6 +99,22 @@ class AppTheme {
         cursorColor: primary,
         selectionColor: primary.withValues(alpha: 0.3),
         selectionHandleColor: primary,
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbVisibility: WidgetStateProperty.all(true),
+        trackVisibility: WidgetStateProperty.all(true),
+        thickness: WidgetStateProperty.all(10),
+        radius: const Radius.circular(10),
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.dragged) ||
+              states.contains(WidgetState.hovered)) {
+            return primary;
+          }
+          return primary.withValues(alpha: 0.85);
+        }),
+        trackColor: WidgetStateProperty.all(primary.withValues(alpha: 0.12)),
+        trackBorderColor: WidgetStateProperty.all(Colors.transparent),
+        minThumbLength: 50,
       ),
     );
   }
@@ -182,12 +200,32 @@ class AppTheme {
         selectionColor: primary.withValues(alpha: 0.4),
         selectionHandleColor: primary,
       ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbVisibility: WidgetStateProperty.all(true),
+        trackVisibility: WidgetStateProperty.all(true),
+        thickness: WidgetStateProperty.all(10),
+        radius: const Radius.circular(10),
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.dragged) ||
+              states.contains(WidgetState.hovered)) {
+            return primary;
+          }
+          return primary.withValues(alpha: 0.85);
+        }),
+        trackColor: WidgetStateProperty.all(
+          Colors.white.withValues(alpha: 0.08),
+        ),
+        trackBorderColor: WidgetStateProperty.all(Colors.transparent),
+        minThumbLength: 50,
+      ),
     );
   }
 
   static Color get primaryColor => ThemeService.instance.primaryColor;
-  static ThemeData get lightTheme => getLightTheme(ThemeService.instance.primaryColor);
-  static ThemeData get darkTheme => getDarkTheme(ThemeService.instance.primaryColor);
+  static ThemeData get lightTheme =>
+      getLightTheme(ThemeService.instance.primaryColor);
+  static ThemeData get darkTheme =>
+      getDarkTheme(ThemeService.instance.primaryColor);
 
   static double getResponsiveFontSize(String text, double baseSize) {
     if (text.length > 40) return baseSize * 0.6;

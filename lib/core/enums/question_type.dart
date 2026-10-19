@@ -88,7 +88,7 @@ enum QuestionType {
 
   static QuestionType fromString(String? key) {
     if (key == null || key.isEmpty) return QuestionType.flashcard;
-    final normalized = key.trim().toLowerCase();
+    final normalized = normalizeStoredKey(key).trim().toLowerCase();
     for (final type in QuestionType.values) {
       if (type.typeKey.toLowerCase() == normalized ||
           type.name.toLowerCase() == normalized) {
@@ -96,5 +96,24 @@ enum QuestionType {
       }
     }
     return QuestionType.flashcard;
+  }
+
+  static String normalizeStoredKey(String key) {
+    switch (key.trim().toLowerCase()) {
+      case 'fill blank':
+      case 'fillblank':
+        return QuestionType.completeSentence.typeKey;
+      case 'english meaning':
+      case 'englishmeaning':
+        return QuestionType.meaning.typeKey;
+      default:
+        for (final type in QuestionType.values) {
+          if (type.typeKey.toLowerCase() == key.trim().toLowerCase() ||
+              type.name.toLowerCase() == key.trim().toLowerCase()) {
+            return type.typeKey;
+          }
+        }
+        return key;
+    }
   }
 }

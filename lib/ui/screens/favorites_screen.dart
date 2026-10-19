@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart' hide ErrorHandler;
 import 'package:superthai/core/models/models.dart';
+import 'package:superthai/core/services/audio_service.dart';
 import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:provider/provider.dart';
@@ -17,9 +17,10 @@ class FavoritesScreen extends StatefulWidget {
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
   Future<List<WordEntry>>? _wordsFuture;
-  final FlutterTts _tts = dataService.tts;
+  final AudioService _audio = AudioService.instance;
   String _selectedCategory = 'Favorites';
   List<LessonPlan> _allPlans = [];
+  List<WordEntry> _favoriteWords = [];
   Set<String> _favoriteIds = {};
 
   final TextEditingController _searchController = TextEditingController();
@@ -29,12 +30,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   void initState() {
     super.initState();
     _loadInitialData();
-    dataService.addListener(_refreshWords);
+    dataService.addListener(_handleDataChanged);
   }
 
   @override
   void dispose() {
-    dataService.removeListener(_refreshWords);
+    dataService.removeListener(_handleDataChanged);
     _searchController.dispose();
     super.dispose();
   }
@@ -49,28 +50,33 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       if (mounted) {
         setState(() {
           _allPlans = results[0] as List<LessonPlan>;
-          final favoriteWords = results[1] as List<WordEntry>;
-          _favoriteIds = favoriteWords.map((word) => word.stableId).toSet();
-          _refreshWords();
+          _favoriteWords = results[1] as List<WordEntry>;
+          _favoriteIds = _favoriteWords.map((word) => word.stableId).toSet();
         });
+        _refreshWords();
       }
     } catch (e) {
       debugPrint("Error loading initial data: $e");
     }
   }
 
+  Future<void> _handleDataChanged() async {
+    try {
+      final favoriteWords = await dataService.getFavoriteWords();
+      if (!mounted) return;
+
+      setState(() {
+        _favoriteWords = favoriteWords;
+        _favoriteIds = favoriteWords.map((word) => word.stableId).toSet();
+      });
+      _refreshWords();
+    } catch (e) {
+      debugPrint("Error refreshing favorite IDs: $e");
+    }
+  }
+
   void _refreshWords() {
     if (!mounted) return;
-
-    dataService.getFavoriteWords().then((favoriteWords) {
-      if (mounted) {
-        setState(() {
-          _favoriteIds = favoriteWords.map((word) => word.stableId).toSet();
-        });
-      }
-    }).catchError((e) {
-      debugPrint("Error refreshing favorite IDs: $e");
-    });
 
     setState(() {
       if (_searchQuery.isNotEmpty) {
@@ -100,7 +106,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
         }
         _wordsFuture = Future.value(filteredWords);
       } else if (_selectedCategory == 'Favorites') {
-        _wordsFuture = dataService.getFavoriteWords();
+        _wordsFuture = Future.value(_favoriteWords);
       } else {
         final List<WordEntry> categoryWords = [];
         final Set<String> seenWords = {};
@@ -159,9 +165,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   Future<void> _speak(String text) async {
-    await _tts.setLanguage("th-TH");
-    await _tts.setSpeechRate(0.5);
-    await _tts.speak(text);
+    await _audio.speakThai(text);
   }
 
   Future<void> _toggleFavorite(WordEntry word) async {
@@ -371,7 +375,9 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
-                    color: theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.8),
+                    color: theme.textTheme.bodyMedium?.color?.withValues(
+                      alpha: 0.8,
+                    ),
                   ),
                 ),
               ],

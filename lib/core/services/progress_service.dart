@@ -1,9 +1,12 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:superthai/core/models/models.dart';
 import 'auth_service.dart';
 import 'data_service.dart';
+import 'package:superthai/features/progress/data/progress_repository.dart';
 
 class ProgressService extends ChangeNotifier {
   static final ProgressService _instance = ProgressService._internal();
@@ -14,9 +17,16 @@ class ProgressService extends ChangeNotifier {
   final Set<String> _triedLessonIds = {};
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   final Map<String, Set<int>> _completedStepIndices = {};
+  final Map<String, Set<String>> _completedStepIds = {};
+  final Map<String, String> _lastStepIds = {};
+  final Set<String> _pendingProgressDeletes = {};
+  final Set<String> _dirtyProgressLessonIds = {};
   String? _lastLessonId;
   int _streakCount = 0;
   DateTime? _lastActivityDate;
+  Future<void>? _progressWriteFuture;
+  bool _progressWriteRequested = false;
+  late final ProgressRepository _progressRepository = ProgressRepository(_db);
 
   static const String _triedLessonsKey = 'tried_lessons';
   static const String _localProgressKey = 'local_progress';
@@ -35,17 +45,27 @@ class ProgressService extends ChangeNotifier {
     _prefs = await SharedPreferences.getInstance();
     _loadLocalProgress();
 
-    AuthService.instance.userChanges.listen((user) {
-      if (user != null) {
-        _migrateLocalProgressToFirestore(user.uid);
-        DataService.instance.migrateFavorites(user.uid);
-        _loadProgressFromFirestore();
-      } else if (AuthService.instance.currentUser == null) {
-        _completedStepIndices.clear();
-        _loadLocalProgress();
-        notifyListeners();
+    AuthService.instance.userChanges.listen(_handleUserChange);
+  }
+
+  Future<void> _handleUserChange(User? user) async {
+    if (user != null) {
+      await _migrateLocalProgressToFirestore(user.uid);
+      try {
+        await DataService.instance.migrateFavorites(user.uid);
+      } catch (error) {
+        debugPrint('Error migrating favorites: $error');
       }
-    });
+      await _loadProgressFromFirestore();
+    } else if (AuthService.instance.currentUser == null) {
+      _completedStepIndices.clear();
+      _completedStepIds.clear();
+      _lastStepIds.clear();
+      _dirtyProgressLessonIds.clear();
+      _pendingProgressDeletes.clear();
+      _loadLocalProgress();
+      notifyListeners();
+    }
   }
 
   void _loadLocalProgress() {
@@ -83,12 +103,20 @@ class ProgressService extends ChangeNotifier {
     return _triedLessonIds.length < 3;
   }
 
-  void markStepAsCompleted(String lessonId, int stepIndex) {
+  void markStepAsCompleted(String lessonId, int stepIndex, {String? stepId}) {
     _lastLessonId = lessonId;
-    _completedStepIndices.putIfAbsent(lessonId, () => {});
-    if (!_completedStepIndices[lessonId]!.contains(stepIndex)) {
-      _completedStepIndices[lessonId]!.add(stepIndex);
-      _updateStreak();
+    final indices = _completedStepIndices.putIfAbsent(lessonId, () => {});
+    final addedIndex = indices.add(stepIndex);
+    var addedStepId = false;
+    if (stepId != null && stepId.isNotEmpty) {
+      addedStepId = _completedStepIds
+          .putIfAbsent(lessonId, () => {})
+          .add(stepId);
+      _lastStepIds[lessonId] = stepId;
+    }
+    if (addedIndex || addedStepId) {
+      _dirtyProgressLessonIds.add(lessonId);
+      if (addedIndex) _updateStreak();
 
       if (AuthService.instance.currentUser != null) {
         _saveProgressToFirestore();
@@ -198,6 +226,8 @@ class ProgressService extends ChangeNotifier {
   }
 
   int getCompleted(String lessonId) {
+    final stepIds = _completedStepIds[lessonId];
+    if (stepIds != null && stepIds.isNotEmpty) return stepIds.length;
     return _completedStepIndices[lessonId]?.length ?? 0;
   }
 
@@ -211,7 +241,11 @@ class ProgressService extends ChangeNotifier {
     if (_lastLessonId == lessonId) _lastLessonId = null;
     if (_completedStepIndices.containsKey(lessonId)) {
       _completedStepIndices.remove(lessonId);
+      _completedStepIds.remove(lessonId);
+      _lastStepIds.remove(lessonId);
       if (AuthService.instance.currentUser != null) {
+        _pendingProgressDeletes.add(lessonId);
+        _dirtyProgressLessonIds.remove(lessonId);
         _saveProgressToFirestore();
       } else {
         _saveLocalProgress();
@@ -221,21 +255,89 @@ class ProgressService extends ChangeNotifier {
   }
 
   Future<void> _saveProgressToFirestore() async {
-    final user = AuthService.instance.currentUser;
-    if (user == null) return;
+    _progressWriteRequested = true;
+    final activeWrite = _progressWriteFuture;
+    if (activeWrite != null) return activeWrite;
 
+    final drain = _drainProgressWrites();
+    _progressWriteFuture = drain;
     try {
-      await _db.collection(usersCollection).doc(user.uid).set({
-        'progress': toMap(),
-        'lastLessonId': _lastLessonId,
-        'streakCount': _streakCount,
-        'lastActivityDate': _lastActivityDate != null
-            ? Timestamp.fromDate(_lastActivityDate!)
-            : null,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    } catch (e) {
-      debugPrint("Error saving progress: $e");
+      await drain;
+    } finally {
+      if (identical(_progressWriteFuture, drain)) {
+        _progressWriteFuture = null;
+      }
+    }
+  }
+
+  Future<void> _drainProgressWrites() async {
+    while (_progressWriteRequested) {
+      _progressWriteRequested = false;
+      final user = AuthService.instance.currentUser;
+      if (user == null) return;
+      final progressSnapshot = toMap().map(
+        (lessonId, indices) => MapEntry(lessonId, List<int>.of(indices)),
+      );
+      final stepIdSnapshot = _completedStepIds.map(
+        (lessonId, ids) => MapEntry(lessonId, List<String>.of(ids)),
+      );
+      final lastStepIdSnapshot = Map<String, String>.from(_lastStepIds);
+      final lessonIdSnapshot = _lastLessonId;
+      final streakSnapshot = _streakCount;
+      final activityDateSnapshot = _lastActivityDate;
+      final dirtyLessonIds = Set<String>.from(_dirtyProgressLessonIds);
+      final deletedLessonIds = Set<String>.from(_pendingProgressDeletes);
+      _dirtyProgressLessonIds.clear();
+      _pendingProgressDeletes.clear();
+
+      try {
+        for (final lessonId in deletedLessonIds) {
+          await _progressRepository.deleteLesson(user.uid, lessonId);
+        }
+        for (final lessonId in dirtyLessonIds) {
+          await _progressRepository.saveLesson(
+            user.uid,
+            lessonId,
+            completedStepIds: stepIdSnapshot[lessonId] ?? const [],
+            lastStepId: lastStepIdSnapshot[lessonId],
+          );
+        }
+      } catch (e) {
+        _dirtyProgressLessonIds.addAll(dirtyLessonIds);
+        _pendingProgressDeletes.addAll(deletedLessonIds);
+        debugPrint("Error saving per-lesson progress: $e");
+      }
+
+      try {
+        final userRef = _db.collection(usersCollection).doc(user.uid);
+        await _db.runTransaction((transaction) async {
+          final userSnapshot = await transaction.get(userRef);
+          final stored = userSnapshot.data()?['progress'];
+          final mergedLegacyProgress = stored is Map
+              ? Map<String, dynamic>.from(stored)
+              : <String, dynamic>{};
+          for (final lessonId in dirtyLessonIds) {
+            mergedLegacyProgress[lessonId] =
+                progressSnapshot[lessonId] ?? const <int>[];
+          }
+          for (final lessonId in deletedLessonIds) {
+            // An empty list acts as a tombstone for older clients while
+            // avoiding removal of the nested map field during merge writes.
+            mergedLegacyProgress[lessonId] = <int>[];
+          }
+          transaction.set(userRef, {
+            'progress': mergedLegacyProgress,
+            'lastLessonId': lessonIdSnapshot,
+            'streakCount': streakSnapshot,
+            'lastActivityDate': activityDateSnapshot != null
+                ? Timestamp.fromDate(activityDateSnapshot)
+                : null,
+            'updatedAt': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true));
+        });
+      } catch (e) {
+        debugPrint("Error saving legacy progress: $e");
+      }
     }
   }
 
@@ -245,11 +347,120 @@ class ProgressService extends ChangeNotifier {
 
     try {
       final doc = await _db.collection(usersCollection).doc(user.uid).get();
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        if (data['progress'] != null) {
-          fromMap(Map<String, dynamic>.from(data['progress']));
+      final data = doc.data() ?? const <String, dynamic>{};
+      final rawLegacyProgress = data['progress'];
+      final legacyProgress = rawLegacyProgress is Map
+          ? Map<String, dynamic>.from(rawLegacyProgress)
+          : <String, dynamic>{};
+      Map<String, Map<String, dynamic>> storedProgress;
+      try {
+        storedProgress = await _progressRepository.getAll(user.uid);
+      } catch (e) {
+        storedProgress = {};
+        debugPrint("Could not read per-lesson progress: $e");
+      }
+      final lessonIds = <String>{
+        ...legacyProgress.keys,
+        ...storedProgress.keys,
+      };
+      final lessonsWithLegacySteps = legacyProgress.entries
+          .where((entry) {
+            final indices = _parseIndices(entry.value);
+            final imported = _parseIndices(
+              storedProgress[entry.key]?['legacyImportedStepIndices'],
+            );
+            return indices.difference(imported).isNotEmpty;
+          })
+          .map((entry) => entry.key)
+          .toList();
+      final legacyPlans = await Future.wait(
+        lessonsWithLegacySteps.map(DataService.instance.getLessonPlanById),
+      );
+      final plansById = <String, LessonPlan>{
+        for (final plan in legacyPlans.whereType<LessonPlan>()) plan.id: plan,
+      };
+      final mergedIndices = <String, Set<int>>{};
+      final mergedStepIds = <String, Set<String>>{};
+      final mergedLastStepIds = <String, String>{};
+      final changedLessons = <String, Map<String, dynamic>>{};
+
+      for (final lessonId in lessonIds) {
+        final oldIndices = _parseIndices(legacyProgress[lessonId]);
+        final stored = storedProgress[lessonId] ?? const <String, dynamic>{};
+        final storedIndices = _parseIndices(stored['completedStepIndices']);
+        final storedStepIds = _parseStrings(stored['completedStepIds']);
+        final importedLegacyIndices = _parseIndices(
+          stored['legacyImportedStepIndices'],
+        );
+        final stepIds = {...storedStepIds};
+        final plan = plansById[lessonId];
+        if (plan != null) {
+          for (final index in {
+            ...oldIndices.difference(importedLegacyIndices),
+            ...storedIndices,
+          }) {
+            if (index >= 0 && index < plan.steps.length) {
+              stepIds.add(plan.steps[index].id);
+            }
+          }
         }
+        final indices = <int>{};
+        if (plan == null) {
+          // Keep a count available if the lesson is temporarily unavailable.
+          indices.addAll(oldIndices);
+          indices.addAll(storedIndices);
+        } else {
+          for (var index = 0; index < plan.steps.length; index++) {
+            if (stepIds.contains(plan.steps[index].id)) indices.add(index);
+          }
+        }
+        var lastStepId = stored['lastStepId'] as String?;
+        if (lastStepId == null || !stepIds.contains(lastStepId)) {
+          if (plan != null && indices.isNotEmpty) {
+            lastStepId = plan.steps[indices.reduce((a, b) => a > b ? a : b)].id;
+          } else if (stepIds.isNotEmpty) {
+            lastStepId = stepIds.last;
+          }
+        }
+        mergedIndices[lessonId] = indices;
+        mergedStepIds[lessonId] = stepIds;
+        if (lastStepId != null) mergedLastStepIds[lessonId] = lastStepId;
+
+        final shouldImportLegacy = oldIndices.difference(importedLegacyIndices);
+        if (!storedProgress.containsKey(lessonId) ||
+            (stored['schemaVersion'] as num? ?? 0) < 3 ||
+            !importedLegacyIndices.containsAll(oldIndices) ||
+            !storedStepIds.containsAll(stepIds) ||
+            (shouldImportLegacy.isNotEmpty && plan != null)) {
+          changedLessons[lessonId] = {
+            'completedStepIds': stepIds.toList(),
+            'lastStepId': lastStepId,
+            'legacyImportedStepIndices': oldIndices.toList()..sort(),
+            'updatedAt': FieldValue.serverTimestamp(),
+            'schemaVersion': 3,
+          };
+        }
+      }
+
+      _completedStepIndices
+        ..clear()
+        ..addAll(mergedIndices);
+      _completedStepIds
+        ..clear()
+        ..addAll(mergedStepIds);
+      _lastStepIds
+        ..clear()
+        ..addAll(mergedLastStepIds);
+      if (changedLessons.isNotEmpty) {
+        try {
+          await _progressRepository.saveLessons(user.uid, changedLessons);
+        } catch (e) {
+          debugPrint("Could not migrate legacy progress: $e");
+        }
+      }
+
+      if (doc.exists) {
+        final data = doc.data()!;
         _lastLessonId = data['lastLessonId'];
         _streakCount = data['streakCount'] ?? 0;
         if (data['lastActivityDate'] != null) {
@@ -257,9 +468,20 @@ class ProgressService extends ChangeNotifier {
           _checkStreakExpiry();
         }
       }
+      notifyListeners();
     } catch (e) {
       debugPrint("Error loading progress: $e");
     }
+  }
+
+  Set<int> _parseIndices(Object? value) {
+    if (value is! Iterable) return {};
+    return value.whereType<num>().map((index) => index.toInt()).toSet();
+  }
+
+  Set<String> _parseStrings(Object? value) {
+    if (value is! Iterable) return {};
+    return value.whereType<String>().toSet();
   }
 
   Map<String, dynamic> toMap() {

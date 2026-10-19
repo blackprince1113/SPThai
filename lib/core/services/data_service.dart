@@ -1,43 +1,27 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:superthai/core/services/auth_service.dart';
+import 'package:superthai/features/vocabulary/data/favorite_repository.dart';
+import 'package:superthai/features/lessons/data/firestore_lesson_repository.dart';
+import 'package:superthai/features/lessons/data/lesson_repository.dart';
 import '../models/models.dart';
-import 'package:flutter_tts/flutter_tts.dart';
-import 'package:speech_to_text/speech_to_text.dart';
 
 class DataService extends ChangeNotifier {
   static final DataService _instance = DataService._internal();
   static DataService get instance => _instance;
 
-  final FlutterTts tts = FlutterTts();
-  SpeechToText? _stt;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  SharedPreferences? _prefs;
+  late final LessonRepository _lessonRepository = FirestoreLessonRepository(
+    _db,
+  );
 
   List<LessonPlan>? _cachedPlans;
+  Future<List<LessonPlan>>? _plansLoadFuture;
+  int _plansRevision = 0;
+  final Map<String, List<WordEntry>> _wordsByCategoryCache = {};
 
   static const String wordsCollection = 'words';
-  static const String plansCollection = 'lesson_plans';
   static const String newsCollection = 'discover';
-  static const String _localFavoritesKey = 'local_favorites';
-
-  DataService._internal() {
-    _init();
-  }
-
-  Future<void> _init() async {
-    _prefs = await SharedPreferences.getInstance();
-    await tts.setVolume(1.0);
-    await tts.setPitch(1.0);
-    await tts.setSpeechRate(0.5);
-  }
-
-  SpeechToText get stt {
-    _stt ??= SpeechToText();
-    return _stt!;
-  }
+  DataService._internal();
 
   Future<void> addWord(WordEntry entry) async {
     await _db
@@ -58,29 +42,58 @@ class DataService extends ChangeNotifier {
         : null;
   }
 
-  Future<List<LessonPlan>> getAllLessonPlans({bool forceRefresh = false}) async {
+  Future<List<LessonPlan>> getAllLessonPlans({
+    bool forceRefresh = false,
+  }) async {
     if (_cachedPlans != null && !forceRefresh) {
       return _cachedPlans!;
     }
+    if (_plansLoadFuture != null && !forceRefresh) {
+      return _plansLoadFuture!;
+    }
 
-    final snapshot = await _db.collection(plansCollection).get();
-    final plans =
-        snapshot.docs.map((doc) => LessonPlan.fromMap(doc.data())).toList();
+    final load = _loadLessonPlans();
+    _plansLoadFuture = load;
+    final revision = _plansRevision;
+    try {
+      final plans = await load;
+      if (revision == _plansRevision && identical(_plansLoadFuture, load)) {
+        _cachedPlans = plans;
+      }
+      return plans;
+    } finally {
+      if (identical(_plansLoadFuture, load)) {
+        _plansLoadFuture = null;
+      }
+    }
+  }
 
-    plans.sort((a, b) => a.index.compareTo(b.index));
-    _cachedPlans = plans;
+  Future<List<LessonPlan>> _loadLessonPlans() async {
+    return _lessonRepository.getAll();
+  }
 
-    return plans;
+  Future<LessonPlan?> getLessonPlanById(String lessonId) async {
+    final cachedPlans = _cachedPlans;
+    if (cachedPlans != null) {
+      if (!cachedPlans.any((plan) => plan.id == lessonId)) return null;
+      // Catalog data may be legacy-shaped. Fetching a specific lesson goes
+      // through the repository so it can migrate that lesson on demand.
+      return _lessonRepository.getById(lessonId);
+    }
+
+    final inFlightLoad = _plansLoadFuture;
+    if (inFlightLoad != null) {
+      final plans = await inFlightLoad;
+      if (!plans.any((plan) => plan.id == lessonId)) return null;
+      return _lessonRepository.getById(lessonId);
+    }
+
+    return _lessonRepository.getById(lessonId);
   }
 
   Future<void> updateLessonIndices(List<LessonPlan> plans) async {
-    final batch = _db.batch();
-    for (int i = 0; i < plans.length; i++) {
-      final docRef = _db.collection(plansCollection).doc(plans[i].id);
-      batch.update(docRef, {'index': i});
-    }
-    await batch.commit();
-    _cachedPlans = null;
+    await _lessonRepository.updateIndices(plans);
+    _invalidatePlansCache();
     notifyListeners();
   }
 
@@ -88,7 +101,14 @@ class DataService extends ChangeNotifier {
     String category, {
     bool forceRefresh = false,
   }) async {
+    if (!forceRefresh && _wordsByCategoryCache.containsKey(category)) {
+      return _wordsByCategoryCache[category]!;
+    }
+    final revision = _plansRevision;
     final plans = await getAllLessonPlans(forceRefresh: forceRefresh);
+    if (revision != _plansRevision) {
+      return getWordsByCategory(category);
+    }
     final List<WordEntry> words = [];
     final Set<String> seenIds = {};
 
@@ -101,66 +121,40 @@ class DataService extends ChangeNotifier {
         }
       }
     }
-    return words;
+    final cachedWords = List<WordEntry>.unmodifiable(words);
+    _wordsByCategoryCache[category] = cachedWords;
+    return cachedWords;
   }
 
   Future<void> addLessonPlan(LessonPlan plan) async {
-    final docRef = _db.collection(plansCollection).doc(plan.id);
-    final doc = await docRef.get();
-
-    int finalIndex = plan.index;
-    DateTime finalCreatedAt = plan.createdAt ?? DateTime.now();
-
-    if (doc.exists) {
-      final oldData = doc.data() as Map<String, dynamic>;
-      if (finalIndex == 0 && oldData.containsKey('index')) {
-        finalIndex = oldData['index'] ?? 0;
-      }
-      if (oldData.containsKey('createdAt')) {
-        finalCreatedAt = DateTime.tryParse(oldData['createdAt'] ?? '') ?? finalCreatedAt;
-      }
-    } else {
-      if (finalIndex == 0) {
-        final plans = await getAllLessonPlans();
-        if (plans.isNotEmpty) {
-          finalIndex = plans.last.index + 1;
-        }
-      }
-    }
-
-    final toSave = LessonPlan(
-      id: plan.id,
-      title: plan.title,
-      category: plan.category,
-      categoryEmoji: plan.categoryEmoji,
-      emoji: plan.emoji,
-      steps: plan.steps,
-      creatorId: plan.creatorId,
-      createdAt: finalCreatedAt,
-      index: finalIndex,
-    );
-
-    await docRef.set(toSave.toMap(), SetOptions(merge: true));
-    _cachedPlans = null;
+    final cachedPlans = _cachedPlans;
+    final nextIndex =
+        plan.index == 0 && cachedPlans != null && cachedPlans.isNotEmpty
+        ? cachedPlans
+                  .map((existingPlan) => existingPlan.index)
+                  .reduce((a, b) => a > b ? a : b) +
+              1
+        : null;
+    await _lessonRepository.save(plan, nextIndex: nextIndex);
+    _invalidatePlansCache();
     notifyListeners();
   }
 
   Future<void> deleteLessonPlan(String planId) async {
-    await _db.collection(plansCollection).doc(planId).delete();
-    _cachedPlans = null;
+    await _lessonRepository.delete(planId);
+    _invalidatePlansCache();
     notifyListeners();
   }
 
-  Future<LessonPlan?> getLessonPlanByCategory(String category) async {
-    final snapshot = await _db
-        .collection(plansCollection)
-        .where('category', isEqualTo: category)
-        .limit(1)
-        .get();
+  void _invalidatePlansCache() {
+    _plansRevision++;
+    _cachedPlans = null;
+    _plansLoadFuture = null;
+    _wordsByCategoryCache.clear();
+  }
 
-    return snapshot.docs.isNotEmpty
-        ? LessonPlan.fromMap(snapshot.docs.first.data())
-        : null;
+  Future<LessonPlan?> getLessonPlanByCategory(String category) async {
+    return _lessonRepository.getByCategory(category);
   }
 
   Future<bool> isDatabaseEmpty() async {
@@ -169,117 +163,20 @@ class DataService extends ChangeNotifier {
   }
 
   Future<void> toggleFavorite(WordEntry word) async {
-    final user = AuthService.instance.currentUser;
-    if (user == null) {
-      await _toggleLocalFavorite(word);
-      return;
-    }
-
-    String docId = word.stableId;
-    final docRef = _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('favorites')
-        .doc(docId);
-
-    final doc = await docRef.get();
-    if (doc.exists) {
-      await docRef.delete();
-    } else {
-      await docRef.set({
-        ...word.toMap(),
-        'id': docId,
-        'addedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-    notifyListeners();
-  }
-
-  Future<void> _toggleLocalFavorite(WordEntry word) async {
-    _prefs ??= await SharedPreferences.getInstance();
-    final localFavs = _prefs!.getStringList(_localFavoritesKey) ?? [];
-
-    int index = -1;
-    for (int i = 0; i < localFavs.length; i++) {
-      final entry = jsonDecode(localFavs[i]);
-      if (entry['thai'] == word.thai && entry['english'] == word.english) {
-        index = i;
-        break;
-      }
-    }
-
-    if (index != -1) {
-      localFavs.removeAt(index);
-    } else {
-      localFavs.add(jsonEncode(word.toMap()));
-    }
-    await _prefs!.setStringList(_localFavoritesKey, localFavs);
+    await FavoriteRepository.instance.toggleFavorite(word);
     notifyListeners();
   }
 
   Future<bool> isFavorite(String wordId) async {
-    final user = AuthService.instance.currentUser;
-    if (user == null) {
-      _prefs ??= await SharedPreferences.getInstance();
-      final localFavs = _prefs!.getStringList(_localFavoritesKey) ?? [];
-      return localFavs.any((e) {
-        final entry = jsonDecode(e);
-        return entry['id'] == wordId || entry['thai'] == wordId;
-      });
-    }
-
-    final doc = await _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('favorites')
-        .doc(wordId)
-        .get();
-    return doc.exists;
+    return FavoriteRepository.instance.isFavorite(wordId);
   }
 
   Future<List<WordEntry>> getFavoriteWords() async {
-    final user = AuthService.instance.currentUser;
-    if (user == null) {
-      _prefs ??= await SharedPreferences.getInstance();
-      final localFavs = _prefs!.getStringList(_localFavoritesKey) ?? [];
-      return localFavs.map((e) => WordEntry.fromMap(jsonDecode(e))).toList();
-    }
-
-    final snapshot = await _db
-        .collection('users')
-        .doc(user.uid)
-        .collection('favorites')
-        .orderBy('addedAt', descending: true)
-        .get();
-
-    return snapshot.docs
-        .map((doc) => WordEntry.fromMap(doc.data()))
-        .where((w) => w.thai.isNotEmpty && w.english.isNotEmpty)
-        .toList();
+    return FavoriteRepository.instance.getFavoriteWords();
   }
 
   Future<void> migrateFavorites(String userId) async {
-    _prefs ??= await SharedPreferences.getInstance();
-    final localFavs = _prefs!.getStringList(_localFavoritesKey);
-    if (localFavs == null || localFavs.isEmpty) return;
-
-    final batch = _db.batch();
-    for (var favJson in localFavs) {
-      final word = WordEntry.fromMap(jsonDecode(favJson));
-      final docRef = _db
-          .collection('users')
-          .doc(userId)
-          .collection('favorites')
-          .doc(word.stableId);
-
-      batch.set(docRef, {
-        ...word.toMap(),
-        'addedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    }
-
-    await batch.commit();
-    await _prefs!.remove(_localFavoritesKey);
+    await FavoriteRepository.instance.migrateLocalFavorites(userId);
   }
 
   Future<void> addDiscoverItem(DiscoverItem item) async {
@@ -295,8 +192,9 @@ class DataService extends ChangeNotifier {
 
   Future<List<DiscoverItem>> getAllDiscoverItems() async {
     final snapshot = await _db.collection(newsCollection).get();
-    final items =
-        snapshot.docs.map((doc) => DiscoverItem.fromMap(doc.data())).toList();
+    final items = snapshot.docs
+        .map((doc) => DiscoverItem.fromMap(doc.data()))
+        .toList();
 
     items.sort((a, b) {
       if (a.isPinned && !b.isPinned) return -1;

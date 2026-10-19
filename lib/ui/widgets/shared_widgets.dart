@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:superthai/ui/screens/settings_screen.dart';
 import 'package:superthai/ui/screens/login_screen.dart';
+import 'package:superthai/ui/screens/main_container.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 
 class ThaiAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -27,6 +28,30 @@ class ThaiAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    Widget? effectiveLeading = leading;
+    if (effectiveLeading == null) {
+      final canPop = ModalRoute.of(context)?.canPop ?? false;
+      if (canPop) {
+        effectiveLeading = IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.maybePop(context),
+        );
+      } else {
+        effectiveLeading = IconButton(
+          icon: Icon(Icons.menu_rounded, color: theme.colorScheme.primary),
+          onPressed: () {
+            final mainState = MainContainer.of(context);
+            if (mainState != null) {
+              mainState.openDrawer();
+            } else {
+              Scaffold.maybeOf(context)?.openDrawer();
+            }
+          },
+        );
+      }
+    }
+
     return AppBar(
       toolbarHeight: 65,
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -59,7 +84,7 @@ class ThaiAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         const SizedBox(width: 8),
       ],
-      leading: leading,
+      leading: effectiveLeading,
       leadingWidth: leadingWidth,
     );
   }
@@ -540,7 +565,9 @@ class ThaiEditableChoiceTile extends StatelessWidget {
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: isCorrect ? primaryColor.withValues(alpha: 0.4) : Colors.transparent,
+          color: isCorrect
+              ? primaryColor.withValues(alpha: 0.4)
+              : Colors.transparent,
           width: 2,
         ),
         boxShadow: [
@@ -567,7 +594,9 @@ class ThaiEditableChoiceTile extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: isCorrect ? Colors.white : primaryColor.withValues(alpha: 0.5),
+                  color: isCorrect
+                      ? Colors.white
+                      : primaryColor.withValues(alpha: 0.5),
                 ),
               ),
             ),
@@ -601,10 +630,7 @@ class ThaiEditableChoiceTile extends StatelessWidget {
   }
 }
 
-InputDecoration editableInputDecoration(
-  ThemeData theme,
-  Color focusColor,
-) {
+InputDecoration editableInputDecoration(ThemeData theme, Color focusColor) {
   return InputDecoration(
     hintText: "Tap to type...",
     hintStyle: TextStyle(
@@ -628,7 +654,10 @@ InputDecoration editableInputDecoration(
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(12),
-      borderSide: BorderSide(color: focusColor.withValues(alpha: 0.5), width: 1.5),
+      borderSide: BorderSide(
+        color: focusColor.withValues(alpha: 0.5),
+        width: 1.5,
+      ),
     ),
   );
 }
@@ -639,14 +668,19 @@ class StepResultNotification extends Notification {
 }
 
 class ThaiDialogs {
-  static void showSignupPrompt(BuildContext context, {String? title, String? message}) {
+  static void showSignupPrompt(
+    BuildContext context, {
+    String? title,
+    String? message,
+  }) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(title ?? "Account Required 🚀"),
         content: Text(
-          message ?? "Please create an account or login to save your progress and access more features!",
+          message ??
+              "Please create an account or login to save your progress and access more features!",
         ),
         actions: [
           TextButton(
@@ -792,7 +826,8 @@ class ThaiQuestionCard extends StatelessWidget {
                   top: Radius.circular(30),
                 ),
               ),
-              child: headerWidget ??
+              child:
+                  headerWidget ??
                   Text(
                     header!,
                     textAlign: TextAlign.center,
@@ -808,7 +843,8 @@ class ThaiQuestionCard extends StatelessWidget {
             padding: padding,
             child: Column(
               children: [
-                if (illustrationSource != null && illustrationSource!.isNotEmpty) ...[
+                if (illustrationSource != null &&
+                    illustrationSource!.isNotEmpty) ...[
                   ThaiIllustration(
                     source: illustrationSource!,
                     height: illustrationHeight,
@@ -998,14 +1034,8 @@ class ThaiSearchBar extends StatelessWidget {
         onChanged: onChanged,
         decoration: InputDecoration(
           hintText: hintText,
-          hintStyle: TextStyle(
-            color: theme.disabledColor,
-            fontSize: 14,
-          ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: theme.disabledColor,
-          ),
+          hintStyle: TextStyle(color: theme.disabledColor, fontSize: 14),
+          prefixIcon: Icon(Icons.search_rounded, color: theme.disabledColor),
           suffixIcon: controller.text.isNotEmpty
               ? IconButton(
                   icon: Icon(
@@ -1081,8 +1111,9 @@ class ThaiSettingsTile extends StatelessWidget {
                 value: switchValue,
                 onChanged: onSwitchChanged,
                 activeThumbColor: theme.colorScheme.primary,
-                activeTrackColor:
-                    theme.colorScheme.primary.withValues(alpha: 0.3),
+                activeTrackColor: theme.colorScheme.primary.withValues(
+                  alpha: 0.3,
+                ),
                 inactiveThumbColor: theme.brightness == Brightness.dark
                     ? Colors.grey.shade400
                     : Colors.grey.shade100,
@@ -1164,7 +1195,7 @@ class ThaiCreateHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
-    
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -1198,9 +1229,7 @@ class ThaiCreateHeader extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             description,
-            style: TextStyle(
-              color: primaryColor.withValues(alpha: 0.7),
-            ),
+            style: TextStyle(color: primaryColor.withValues(alpha: 0.7)),
           ),
         ],
       ),
@@ -1229,17 +1258,11 @@ class ThaiInfoBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: boxColor.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: boxColor.withValues(alpha: 0.1),
-        ),
+        border: Border.all(color: boxColor.withValues(alpha: 0.1)),
       ),
       child: Row(
         children: [
-          Icon(
-            icon,
-            color: boxColor,
-            size: 28,
-          ),
+          Icon(icon, color: boxColor, size: 28),
           const SizedBox(width: 16),
           Expanded(
             child: Text(
