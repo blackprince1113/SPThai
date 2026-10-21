@@ -21,11 +21,21 @@ class MainContainer extends StatefulWidget {
 class MainContainerState extends State<MainContainer> {
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 0;
+  String? _selectedCategory;
   LessonPlan? _editingPlan;
 
   final List<bool> _loadedPages = [true, false, false, false];
 
   int get selectedIndex => _selectedIndex;
+  String? get selectedCategory => _selectedCategory;
+
+  void selectCategory(String? category) {
+    setState(() {
+      _selectedCategory = category;
+      _selectedIndex = 0;
+      _loadedPages[0] = true;
+    });
+  }
 
   void openDrawer() {
     scaffoldKey.currentState?.openDrawer();
@@ -85,7 +95,7 @@ class MainContainerState extends State<MainContainer> {
           body: IndexedStack(
             index: effectiveIndex,
             children: [
-              const LessonSelectionScreen(),
+              LessonSelectionScreen(selectedCategory: _selectedCategory),
               _buildLazyPage(1, () => const FavoritesScreen()),
               _buildLazyPage(2, () => const DiscoverScreen()),
               _buildLazyPage(3, () => CreateScreen(existingPlan: _editingPlan)),

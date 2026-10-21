@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/auth_service.dart';
+import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/screens/main_container.dart';
-import 'package:superthai/ui/screens/settings_screen.dart';
 import 'package:superthai/ui/screens/login_screen.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 
@@ -17,6 +19,7 @@ class AppDrawer extends StatelessWidget {
     final isAdmin = auth.isAdmin;
     final mainState = MainContainer.of(context);
     final currentIndex = mainState?.selectedIndex ?? 0;
+    final selectedCategory = mainState?.selectedCategory;
 
     return Drawer(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -61,8 +64,9 @@ class AppDrawer extends StatelessWidget {
                 ),
                 if (user != null && isAdmin)
                   Container(
+                    margin: const EdgeInsets.only(right: 16, bottom: 4),
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: Colors.amber,
                       borderRadius: BorderRadius.circular(4),
@@ -80,68 +84,101 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
 
-          // Menu Items List
+          // Categories List
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-              children: [
-                _buildDrawerItem(
-                  context,
-                  icon: Icons.menu_book_rounded,
-                  title: 'Lessons',
-                  isSelected: currentIndex == 0,
-                  onTap: () {
-                    Navigator.pop(context);
-                    mainState?.setSelectedIndex(0);
-                  },
-                ),
-                _buildDrawerItem(
-                  context,
-                  icon: Icons.translate_rounded,
-                  title: 'Vocabulary',
-                  isSelected: currentIndex == 1,
-                  onTap: () {
-                    Navigator.pop(context);
-                    mainState?.setSelectedIndex(1);
-                  },
-                ),
-                _buildDrawerItem(
-                  context,
-                  icon: Icons.explore_rounded,
-                  title: 'Discover',
-                  isSelected: currentIndex == 2,
-                  onTap: () {
-                    Navigator.pop(context);
-                    mainState?.setSelectedIndex(2);
-                  },
-                ),
-                if (isAdmin)
-                  _buildDrawerItem(
-                    context,
-                    icon: Icons.add_circle_rounded,
-                    title: 'Create',
-                    isSelected: currentIndex == 3,
-                    onTap: () {
-                      Navigator.pop(context);
-                      mainState?.setSelectedIndex(3);
-                    },
-                  ),
-                const Divider(height: 24, indent: 16, endIndent: 16),
-                _buildDrawerItem(
-                  context,
-                  icon: Icons.settings_rounded,
-                  title: 'Settings',
-                  isSelected: false,
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const SettingsScreen()),
-                    );
-                  },
-                ),
-              ],
+            child: FutureBuilder<List<LessonPlan>>(
+              future: dataService.getAllLessonPlans(),
+              builder: (context, snapshot) {
+                final plans = snapshot.data ?? [];
+
+                // Group plans by category
+                final Map<String, List<LessonPlan>> categoryMap = {};
+                for (var plan in plans) {
+                  if (plan.category.isNotEmpty) {
+                    categoryMap.putIfAbsent(plan.category, () => []).add(plan);
+                  }
+                }
+                final categoryNames = categoryMap.keys.toList();
+
+                return ListView(
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  children: [
+                    // Section Header: CATEGORIES
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.category_rounded,
+                                size: 16,
+                                color: theme.disabledColor,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'CATEGORIES',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: theme.disabledColor,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (categoryNames.isNotEmpty)
+                            Text(
+                              '${categoryNames.length}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: theme.disabledColor,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+
+                    // Category Items List from Top to Bottom
+                    if (categoryNames.isEmpty &&
+                        snapshot.connectionState == ConnectionState.waiting)
+                      const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    else
+                      ...categoryNames.map((catName) {
+                        final catPlans = categoryMap[catName]!;
+                        final firstPlan = catPlans.first;
+                        final emoji = firstPlan.categoryEmoji.isNotEmpty
+                            ? firstPlan.categoryEmoji
+                            : (firstPlan.emoji.isNotEmpty
+                                ? firstPlan.emoji
+                                : '📚');
+                        final isSelected = currentIndex == 0 &&
+                            (selectedCategory == catName ||
+                                (selectedCategory == null &&
+                                    catName == categoryNames.first));
+
+                        return _buildCategoryItem(
+                          context,
+                          emoji: emoji,
+                          title: catName,
+                          count: catPlans.length,
+                          isSelected: isSelected,
+                          onTap: () {
+                            Navigator.pop(context);
+                            mainState?.selectCategory(catName);
+                          },
+                        );
+                      }),
+                  ],
+                );
+              },
             ),
           ),
 
@@ -152,12 +189,18 @@ class AppDrawer extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'SuperThai v1.0.0',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.textTheme.bodySmall?.color
-                        ?.withValues(alpha: 0.5),
-                  ),
+                FutureBuilder<PackageInfo>(
+                  future: PackageInfo.fromPlatform(),
+                  builder: (context, snapshot) {
+                    final version = snapshot.data?.version ?? '1.2.8';
+                    return Text(
+                      'SuperThai v$version',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.textTheme.bodySmall?.color
+                            ?.withValues(alpha: 0.5),
+                      ),
+                    );
+                  },
                 ),
                 if (user != null)
                   TextButton.icon(
@@ -197,10 +240,11 @@ class AppDrawer extends StatelessWidget {
     );
   }
 
-  Widget _buildDrawerItem(
+  Widget _buildCategoryItem(
     BuildContext context, {
-    required IconData icon,
+    required String emoji,
     required String title,
+    required int count,
     required bool isSelected,
     required VoidCallback onTap,
   }) {
@@ -210,25 +254,54 @@ class AppDrawer extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: ListTile(
-        leading: Icon(
-          icon,
-          color: isSelected ? primaryColor : theme.iconTheme.color,
+        leading: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isSelected
+                ? primaryColor.withValues(alpha: 0.15)
+                : theme.dividerColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            emoji,
+            style: const TextStyle(fontSize: 18),
+          ),
         ),
         title: Text(
           title,
           style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+            fontSize: 14,
             color:
                 isSelected ? primaryColor : theme.textTheme.bodyLarge?.color,
           ),
         ),
+        trailing: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? primaryColor.withValues(alpha: 0.15)
+                : theme.dividerColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: isSelected ? primaryColor : theme.disabledColor,
+            ),
+          ),
+        ),
         selected: isSelected,
-        selectedTileColor: primaryColor.withValues(alpha: 0.1),
+        selectedTileColor: primaryColor.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         onTap: onTap,
       ),
     );

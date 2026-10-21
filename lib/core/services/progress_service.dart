@@ -22,6 +22,7 @@ class ProgressService extends ChangeNotifier {
   final Set<String> _pendingProgressDeletes = {};
   final Set<String> _dirtyProgressLessonIds = {};
   String? _lastLessonId;
+  double _lastScrollOffset = 0.0;
   int _streakCount = 0;
   DateTime? _lastActivityDate;
   Future<void>? _progressWriteFuture;
@@ -34,6 +35,7 @@ class ProgressService extends ChangeNotifier {
 
   int get streakCount => _streakCount;
   String? get lastLessonId => _lastLessonId;
+  double get lastScrollOffset => _lastScrollOffset;
   bool get isTrialLimitReached => _triedLessonIds.length >= 3;
   int get triedLessonsCount => _triedLessonIds.length;
 
@@ -79,6 +81,7 @@ class ProgressService extends ChangeNotifier {
 
     _streakCount = _prefs!.getInt('streak_count') ?? 0;
     _lastLessonId = _prefs!.getString('last_lesson_id');
+    _lastScrollOffset = _prefs!.getDouble('last_scroll_offset') ?? 0.0;
     final lastDateStr = _prefs!.getString('last_activity_date');
     if (lastDateStr != null) {
       _lastActivityDate = DateTime.parse(lastDateStr);
@@ -172,6 +175,7 @@ class ProgressService extends ChangeNotifier {
     if (_prefs == null) return;
     await _prefs!.setStringList(_triedLessonsKey, _triedLessonIds.toList());
     await _prefs!.setString(_localProgressKey, jsonEncode(toMap()));
+    await _prefs!.setDouble('last_scroll_offset', _lastScrollOffset);
     if (_lastLessonId != null) {
       await _prefs!.setString('last_lesson_id', _lastLessonId!);
     }
@@ -328,6 +332,7 @@ class ProgressService extends ChangeNotifier {
           transaction.set(userRef, {
             'progress': mergedLegacyProgress,
             'lastLessonId': lessonIdSnapshot,
+            'lastScrollOffset': _lastScrollOffset,
             'streakCount': streakSnapshot,
             'lastActivityDate': activityDateSnapshot != null
                 ? Timestamp.fromDate(activityDateSnapshot)
@@ -462,6 +467,8 @@ class ProgressService extends ChangeNotifier {
       if (doc.exists) {
         final data = doc.data()!;
         _lastLessonId = data['lastLessonId'];
+        _lastScrollOffset =
+            (data['lastScrollOffset'] as num?)?.toDouble() ?? 0.0;
         _streakCount = data['streakCount'] ?? 0;
         if (data['lastActivityDate'] != null) {
           _lastActivityDate = (data['lastActivityDate'] as Timestamp).toDate();
@@ -495,6 +502,15 @@ class ProgressService extends ChangeNotifier {
       _completedStepIndices[key] = (value as List).map((e) => e as int).toSet();
     });
     notifyListeners();
+  }
+
+  void saveScrollOffset(double offset) {
+    if ((_lastScrollOffset - offset).abs() < 2.0) return;
+    _lastScrollOffset = offset;
+    _prefs?.setDouble('last_scroll_offset', offset);
+    if (AuthService.instance.currentUser != null) {
+      _saveProgressToFirestore();
+    }
   }
 
   void updateLastLesson(String lessonId) {

@@ -12,7 +12,9 @@ import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/features/lessons/presentation/screens/manage_lessons_screen.dart';
 
 class LessonSelectionScreen extends StatefulWidget {
-  const LessonSelectionScreen({super.key});
+  final String? selectedCategory;
+
+  const LessonSelectionScreen({super.key, this.selectedCategory});
 
   @override
   State<LessonSelectionScreen> createState() => _LessonSelectionScreenState();
@@ -170,11 +172,26 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
   final ScrollController _scrollController = ScrollController();
   bool _hasScrolled = false;
   List<LessonPlan>? _cachedPlans;
+  String? _lastActiveCategory;
 
   @override
   void initState() {
     super.initState();
     _refreshCategories();
+  }
+
+  @override
+  void didUpdateWidget(LessonSelectionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedCategory != widget.selectedCategory) {
+      _hasScrolled = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_scrollController.hasClients) {
+          _scrollController.jumpTo(0.0);
+        }
+      });
+      setState(() {});
+    }
   }
 
   @override
@@ -192,100 +209,141 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: ThaiAppBar(
-        title: "Lesson",
-        actions: [
-          Consumer<AuthService>(
-            builder: (context, auth, _) {
-              if (!auth.isAdmin) return const SizedBox.shrink();
-              return IconButton(
-                icon: Icon(Icons.sort_rounded, color: AppTheme.primaryColor),
-                onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ManageLessonsScreen(),
-                  ),
-                ).then((_) => _refreshCategories()),
-              );
-            },
-          ),
-          Consumer<ProgressService>(
-            builder: (context, progress, _) {
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.local_fire_department_rounded,
-                    color: Theme.of(context).colorScheme.primary,
-                    size: 28,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    "${progress.streakCount}",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-      body: FutureBuilder<List<LessonPlan>>(
-        future: _plansFuture,
-        builder: (context, snapshot) {
-          if (snapshot.hasData) {
-            _cachedPlans = snapshot.data;
-          }
+    final selectedCategory =
+        widget.selectedCategory ?? MainContainer.of(context)?.selectedCategory;
 
-          final allPlans = snapshot.data ?? _cachedPlans;
+    return FutureBuilder<List<LessonPlan>>(
+      future: _plansFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          _cachedPlans = snapshot.data;
+        }
 
-          if (allPlans == null &&
-              snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError && allPlans == null) {
-            return Center(child: Text("Error: ${snapshot.error}"));
-          }
-          final plansToDisplay = allPlans ?? [];
+        final allPlans = snapshot.data ?? _cachedPlans;
+        final plansToDisplay = allPlans ?? [];
 
-          return RefreshIndicator(
-            onRefresh: () async => _refreshCategories(force: true),
-            child: plansToDisplay.isEmpty
-                ? SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: SizedBox(
-                      height: MediaQuery.of(context).size.height * 0.7,
-                      child: _buildEmptyState(),
-                    ),
-                  )
-                : Consumer<ProgressService>(
-                    builder: (context, progress, _) {
-                      return _LessonMap(
-                        plans: plansToDisplay,
-                        progress: progress,
-                        onReturn: _refreshCategories,
-                        scrollController: _scrollController,
-                        hasScrolled: _hasScrolled,
-                        onScrolled: (val) => _hasScrolled = val,
-                      );
-                    },
-                  ),
+        // Group plans by category to determine active category and title
+        final Map<String, List<LessonPlan>> categoryMap = {};
+        for (var plan in plansToDisplay) {
+          if (plan.category.isNotEmpty) {
+            categoryMap.putIfAbsent(plan.category, () => []).add(plan);
+          }
+        }
+        final categoryList = categoryMap.keys.toList();
+
+        String? activeCategory = selectedCategory;
+        if (activeCategory == null && categoryList.isNotEmpty) {
+          activeCategory = categoryList.first;
+        }
+
+        if (_lastActiveCategory != activeCategory) {
+          _lastActiveCategory = activeCategory;
+          _hasScrolled = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scrollController.hasClients) {
+              _scrollController.jumpTo(0.0);
+            }
+          });
+        }
+
+        final List<LessonPlan> filteredPlans;
+        if (activeCategory == 'ALL' || activeCategory == null) {
+          filteredPlans = plansToDisplay;
+        } else {
+          filteredPlans = categoryMap[activeCategory] ?? [];
+        }
+
+        String appBarTitle = "Lesson";
+        if (activeCategory != null && activeCategory != 'ALL') {
+          final firstPlan = categoryMap[activeCategory]?.first;
+          final emoji = firstPlan?.categoryEmoji.isNotEmpty == true
+              ? firstPlan!.categoryEmoji
+              : (firstPlan?.emoji.isNotEmpty == true
+                  ? firstPlan!.emoji
+                  : '📚');
+          appBarTitle = "$emoji $activeCategory";
+        } else if (activeCategory == 'ALL') {
+          appBarTitle = "📚 All Lessons";
+        }
+
+        if (allPlans == null &&
+            snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            appBar: ThaiAppBar(title: appBarTitle),
+            body: const Center(child: CircularProgressIndicator()),
           );
-        },
-      ),
-    );
-  }
+        }
+        if (snapshot.hasError && allPlans == null) {
+          return Scaffold(
+            appBar: ThaiAppBar(title: appBarTitle),
+            body: Center(child: Text("Error: ${snapshot.error}")),
+          );
+        }
 
-  Widget _buildEmptyState() {
-    return const ThaiEmptyState(
-      icon: Icons.folder_open_rounded,
-      title: "No lessons available yet!",
-      subtitle: "Please check back later for new content.",
+        return Scaffold(
+          appBar: ThaiAppBar(
+            title: appBarTitle,
+            actions: [
+              Consumer<AuthService>(
+                builder: (context, auth, _) {
+                  if (!auth.isAdmin) return const SizedBox.shrink();
+                  return IconButton(
+                    icon:
+                        Icon(Icons.sort_rounded, color: AppTheme.primaryColor),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ManageLessonsScreen(),
+                      ),
+                    ).then((_) => _refreshCategories()),
+                  );
+                },
+              ),
+              Consumer<ProgressService>(
+                builder: (context, progress, _) {
+                  return Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.local_fire_department_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        "${progress.streakCount}",
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+          body: Consumer<ProgressService>(
+            builder: (context, progress, _) {
+              return _LessonMap(
+                key: ValueKey(activeCategory ?? 'ALL'),
+                plans: filteredPlans,
+                progress: progress,
+                onReturn: _refreshCategories,
+                scrollController: _scrollController,
+                hasScrolled: _hasScrolled,
+                onScrolled: (val) => _hasScrolled = val,
+                categoryList: categoryList,
+                activeCategory: activeCategory,
+                onSelectCategory: (newCat) {
+                  MainContainer.of(context)?.selectCategory(newCat);
+                },
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -297,14 +355,21 @@ class _LessonMap extends StatefulWidget {
   final ScrollController scrollController;
   final bool hasScrolled;
   final ValueChanged<bool> onScrolled;
+  final List<String> categoryList;
+  final String? activeCategory;
+  final ValueChanged<String>? onSelectCategory;
 
   const _LessonMap({
+    super.key,
     required this.plans,
     required this.progress,
     required this.onReturn,
     required this.scrollController,
     required this.hasScrolled,
     required this.onScrolled,
+    required this.categoryList,
+    required this.activeCategory,
+    this.onSelectCategory,
   });
 
   @override
@@ -312,6 +377,9 @@ class _LessonMap extends StatefulWidget {
 }
 
 class _LessonMapState extends State<_LessonMap> {
+  DateTime? _lastCategorySwitchTime;
+  double _accumulatedOverscroll = 0.0;
+
   static const List<String> _thaiConsonants = [
     'ก',
     'ข',
@@ -361,79 +429,26 @@ class _LessonMapState extends State<_LessonMap> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _scrollToCurrentLesson();
+        _restoreScrollPosition();
       }
     });
   }
 
-  void _scrollToCurrentLesson() {
+  void _restoreScrollPosition() {
     if (widget.plans.isEmpty || widget.hasScrolled) return;
 
-    final targetLessonId = widget.progress.lastLessonId;
-    int targetIndex = -1;
-
-    if (targetLessonId != null) {
-      targetIndex = widget.plans.indexWhere((p) => p.id == targetLessonId);
-    }
-
-    if (targetIndex == -1) {
-      for (int i = 0; i < widget.plans.length; i++) {
-        final plan = widget.plans[i];
-        final completed = widget.progress.getCompleted(plan.id);
-        if (completed < plan.steps.length) {
-          targetIndex = i;
-          break;
-        }
+    if (widget.scrollController.hasClients) {
+      final double maxScroll =
+          widget.scrollController.position.maxScrollExtent;
+      if (maxScroll <= 0) {
+        widget.scrollController.jumpTo(0.0);
+        widget.progress.saveScrollOffset(0.0);
+        widget.onScrolled(true);
+        return;
       }
-    }
-
-    if (targetIndex == -1) {
-      targetIndex = widget.plans.length - 1;
-    }
-
-    final resolvedLessonId = widget.plans[targetIndex].id;
-    final Map<String, List<LessonPlan>> plansByCategory = {};
-    for (var plan in widget.plans) {
-      plansByCategory.putIfAbsent(plan.category, () => []).add(plan);
-    }
-    final categoryNames = plansByCategory.keys.toList();
-    double offset = 0;
-    bool found = false;
-
-    const double headerAndGapHeight = 168.0;
-    const double rowHeight = 120.0;
-    const double categoryBottomSpacing = 24.0;
-    const double listTopPadding = 20.0;
-
-    for (var catName in categoryNames) {
-      final catPlans = plansByCategory[catName]!;
-      int lessonIndexInCat = catPlans.indexWhere(
-        (p) => p.id == resolvedLessonId,
-      );
-
-      if (lessonIndexInCat != -1) {
-        offset +=
-            listTopPadding +
-            headerAndGapHeight +
-            (lessonIndexInCat * rowHeight);
-        final screenHeight = MediaQuery.of(context).size.height;
-        offset -= (screenHeight / 2) - (rowHeight / 2);
-        found = true;
-        break;
-      } else {
-        offset +=
-            headerAndGapHeight +
-            (catPlans.length * rowHeight) +
-            categoryBottomSpacing;
-      }
-    }
-
-    if (found && widget.scrollController.hasClients) {
-      widget.scrollController.animateTo(
-        offset.clamp(0.0, widget.scrollController.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 1000),
-        curve: Curves.easeInOutCubic,
-      );
+      final double savedOffset = widget.progress.lastScrollOffset;
+      final double targetOffset = savedOffset.clamp(0.0, maxScroll);
+      widget.scrollController.jumpTo(targetOffset);
       widget.onScrolled(true);
     }
   }
@@ -551,6 +566,100 @@ class _LessonMapState extends State<_LessonMap> {
     );
   }
 
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollEndNotification) {
+      widget.progress.saveScrollOffset(widget.scrollController.offset);
+      _accumulatedOverscroll = 0.0;
+    }
+
+    final activeCat = widget.activeCategory;
+    final catList = widget.categoryList;
+    if (activeCat == null ||
+        catList.isEmpty ||
+        widget.onSelectCategory == null) {
+      return false;
+    }
+
+    final currentIndex = catList.indexOf(activeCat);
+    if (currentIndex == -1) return false;
+
+    final now = DateTime.now();
+    final bool canSwitch = _lastCategorySwitchTime == null ||
+        now.difference(_lastCategorySwitchTime!).inMilliseconds > 800;
+
+    if (!canSwitch) return false;
+
+    double overscrollDelta = 0.0;
+    if (notification is OverscrollNotification) {
+      overscrollDelta = notification.overscroll;
+    } else if (notification is ScrollUpdateNotification) {
+      final scrollDelta = notification.scrollDelta ?? 0.0;
+      final metrics = notification.metrics;
+      if (metrics.pixels < metrics.minScrollExtent ||
+          metrics.pixels > metrics.maxScrollExtent) {
+        overscrollDelta = scrollDelta;
+      }
+    }
+
+    if (overscrollDelta != 0.0) {
+      _accumulatedOverscroll += overscrollDelta;
+
+      if (_accumulatedOverscroll > 25.0 && currentIndex < catList.length - 1) {
+        _lastCategorySwitchTime = now;
+        _accumulatedOverscroll = 0.0;
+        final nextCat = catList[currentIndex + 1];
+        widget.onSelectCategory!(nextCat);
+        _showCategoryToast(context, nextCat, isNext: true);
+      } else if (_accumulatedOverscroll < -25.0 && currentIndex > 0) {
+        _lastCategorySwitchTime = now;
+        _accumulatedOverscroll = 0.0;
+        final prevCat = catList[currentIndex - 1];
+        widget.onSelectCategory!(prevCat);
+        _showCategoryToast(context, prevCat, isNext: false);
+      }
+    }
+    return false;
+  }
+
+  void _showCategoryToast(
+    BuildContext context,
+    String categoryName, {
+    required bool isNext,
+  }) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isNext
+                  ? Icons.arrow_downward_rounded
+                  : Icons.arrow_upward_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                isNext ? 'Next: $categoryName' : 'Previous: $categoryName',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(milliseconds: 1200),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, List<LessonPlan>> plansByCategory = {};
@@ -558,13 +667,6 @@ class _LessonMapState extends State<_LessonMap> {
       plansByCategory.putIfAbsent(plan.category, () => []).add(plan);
     }
     final categoryNames = plansByCategory.keys.toList();
-    final contentExtent =
-        140.0 +
-        categoryNames.fold<double>(
-          0,
-          (extent, categoryName) =>
-              extent + 192.0 + (plansByCategory[categoryName]!.length * 120.0),
-        );
     final categoryConsonantStarts = <int>[];
     var consonantOffset = 0;
     for (final categoryName in categoryNames) {
@@ -572,201 +674,194 @@ class _LessonMapState extends State<_LessonMap> {
       consonantOffset += (plansByCategory[categoryName]!.length ~/ 2);
     }
     final theme = Theme.of(context);
-    return _LessonMapScrollbar(
-      controller: widget.scrollController,
-      contentExtent: contentExtent,
-      child: RepaintBoundary(
-        child: ListView.builder(
-          controller: widget.scrollController,
-          padding: const EdgeInsets.only(
-            top: 20,
-            bottom: 120,
-            left: 36,
-            right: 36,
-          ),
-          itemCount: categoryNames.length,
-          itemExtentBuilder: (categoryIndex, dimensions) {
-            const categoryHeaderHeight = 138.0;
-            const categoryHeaderGap = 30.0;
-            const categoryBottomGap = 24.0;
-            const lessonRowHeight = 120.0;
-            final lessonCount =
-                plansByCategory[categoryNames[categoryIndex]]!.length;
-            return categoryHeaderHeight +
-                categoryHeaderGap +
-                (lessonCount * lessonRowHeight) +
-                categoryBottomGap;
-          },
-          itemBuilder: (context, categoryIndex) {
-            final categoryName = categoryNames[categoryIndex];
-            final categoryPlans = plansByCategory[categoryName]!;
 
-            return Consumer<ProgressService>(
-              builder: (context, progress, _) {
-                int completedStepCount = 0;
-                int totalStepCount = 0;
-                for (var lessonPlan in categoryPlans) {
-                  completedStepCount += progress.getCompleted(lessonPlan.id);
-                  totalStepCount += lessonPlan.steps.length;
-                }
-
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    final double width = constraints.maxWidth;
-                    const List<double> alignments = [0.0, -0.5, 0.0, 0.5];
-                    const double nodeWidth = 80.0;
-                    const double rowHeight = 120.0;
-                    final List<Offset> points = [];
-
-                    for (int i = 0; i < categoryPlans.length; i++) {
-                      final align = alignments[i % alignments.length];
-                      final double x =
-                          (width / 2) + (align * (width - nodeWidth) / 2);
-                      final double y = (i * rowHeight) + (rowHeight / 2);
-                      points.add(Offset(x, y));
-                    }
-
-                    return Column(
-                      children: [
-                        SizedBox(
-                          height: 138,
-                          child: UnitHeaderCard(
-                            title: categoryName,
-                            emoji: categoryPlans.isNotEmpty
-                                ? categoryPlans.first.categoryEmoji
-                                : '??',
-                            completed: completedStepCount,
-                            total: totalStepCount,
-                          ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return NotificationListener<ScrollNotification>(
+          onNotification: _handleScrollNotification,
+          child: SingleChildScrollView(
+            controller: widget.scrollController,
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: constraints.maxHeight,
+              ),
+              child: Container(
+                color: Colors.transparent,
+                padding: const EdgeInsets.only(
+                  top: 28,
+                  bottom: 120,
+                  left: 36,
+                  right: 36,
+                ),
+                child: categoryNames.isEmpty
+                    ? const Center(
+                        child: ThaiEmptyState(
+                          icon: Icons.folder_open_rounded,
+                          title: "No lessons available yet!",
+                          subtitle: "Please check back later for new content.",
                         ),
-                        const SizedBox(height: 30),
-                        SizedBox(
-                          height: categoryPlans.length * 120.0,
-                          child: Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              ...List.generate(categoryPlans.length, (index) {
-                                if (index % 2 == 0) {
-                                  return const SizedBox.shrink();
-                                }
+                      )
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(categoryNames.length, (categoryIndex) {
+                          final categoryName = categoryNames[categoryIndex];
+                          final categoryPlans = plansByCategory[categoryName]!;
 
-                                final consonantIndex =
-                                    categoryConsonantStarts[categoryIndex] +
-                                    (index ~/ 2);
+                          return Consumer<ProgressService>(
+                            builder: (context, progress, _) {
+                              return LayoutBuilder(
+                                builder: (context, constraints) {
+                                  final double width = constraints.maxWidth;
+                                  const List<double> alignments = [0.0, -0.5, 0.0, 0.5];
+                                  const double nodeWidth = 80.0;
+                                  const double rowHeight = 120.0;
+                                  final List<Offset> points = [];
 
-                                final char =
-                                    _thaiConsonants[consonantIndex %
-                                        _thaiConsonants.length];
-                                final nodeAlign =
-                                    alignments[index % alignments.length];
-                                final charAlign = nodeAlign < 0 ? 0.8 : -0.8;
+                                  for (int i = 0; i < categoryPlans.length; i++) {
+                                    final align = alignments[i % alignments.length];
+                                    final double x =
+                                        (width / 2) + (align * (width - nodeWidth) / 2);
+                                    final double y = (i * rowHeight) + (rowHeight / 2);
+                                    points.add(Offset(x, y));
+                                  }
 
-                                return Positioned(
-                                  top: (index * rowHeight) - 20,
-                                  left: 0,
-                                  right: 0,
-                                  child: IgnorePointer(
-                                    child: Align(
-                                      alignment: Alignment(charAlign, 0),
-                                      child: Text(
-                                        char,
-                                        style: TextStyle(
-                                          fontSize: 110,
-                                          fontWeight: FontWeight.bold,
-                                          color: theme
-                                              .textTheme
-                                              .bodyLarge
-                                              ?.color
-                                              ?.withValues(alpha: 0.08),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }),
-                              SizedBox(
-                                width: width,
-                                child: RepaintBoundary(
-                                  child: IgnorePointer(
-                                    child: CustomPaint(
-                                      size: Size(
-                                        width,
-                                        categoryPlans.length * rowHeight,
-                                      ),
-                                      painter: MapPathPainter(
-                                        points: points,
-                                        color: Colors.blueGrey.withValues(
-                                          alpha: 0.15,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              SizedBox(
-                                width: width,
-                                child: Column(
-                                  children: List.generate(categoryPlans.length, (
-                                    index,
-                                  ) {
-                                    final plan = categoryPlans[index];
-                                    final completed = progress.getCompleted(
-                                      plan.id,
-                                    );
-                                    final total = plan.steps.length;
-                                    final align =
-                                        alignments[index % alignments.length];
+                                  return Column(
+                                    children: [
+                                      const SizedBox(height: 12),
+                                      SizedBox(
+                                        height: categoryPlans.length * 120.0,
+                                        child: Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            ...List.generate(categoryPlans.length, (index) {
+                                              if (index % 2 == 0) {
+                                                return const SizedBox.shrink();
+                                              }
 
-                                    return SizedBox(
-                                      height: rowHeight,
-                                      width: width,
-                                      child: MapNode(
-                                        plan: plan,
-                                        completed: completed,
-                                        total: total,
-                                        alignment: align,
-                                        onLongPress: () =>
-                                            _showOptions(context, plan),
-                                        onTap: () async {
-                                          if (progress.canTryLesson(plan.id)) {
-                                            progress.updateLastLesson(plan.id);
-                                            await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => LessonScreen(
-                                                  category: plan.category,
-                                                  lessonId: plan.id,
+                                              final consonantIndex =
+                                                  categoryConsonantStarts[categoryIndex] +
+                                                  (index ~/ 2);
+
+                                              final char =
+                                                  _thaiConsonants[consonantIndex %
+                                                      _thaiConsonants.length];
+                                              final nodeAlign =
+                                                  alignments[index % alignments.length];
+                                              final charAlign = nodeAlign < 0 ? 0.8 : -0.8;
+
+                                              return Positioned(
+                                                top: (index * rowHeight) - 20,
+                                                left: 0,
+                                                right: 0,
+                                                child: IgnorePointer(
+                                                  child: Align(
+                                                    alignment: Alignment(charAlign, 0),
+                                                    child: Text(
+                                                      char,
+                                                      style: TextStyle(
+                                                        fontSize: 110,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: theme
+                                                            .textTheme
+                                                            .bodyLarge
+                                                            ?.color
+                                                            ?.withValues(alpha: 0.08),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            }),
+                                            SizedBox(
+                                              width: width,
+                                              child: RepaintBoundary(
+                                                child: IgnorePointer(
+                                                  child: CustomPaint(
+                                                    size: Size(
+                                                      width,
+                                                      categoryPlans.length * rowHeight,
+                                                    ),
+                                                    painter: MapPathPainter(
+                                                      points: points,
+                                                      color: Colors.blueGrey.withValues(
+                                                        alpha: 0.15,
+                                                      ),
+                                                    ),
+                                                  ),
                                                 ),
                                               ),
-                                            );
-                                            widget.onReturn();
-                                          } else {
-                                            ThaiDialogs.showSignupPrompt(
-                                              context,
-                                              title: "Trial Limit Reached! 🚀",
-                                              message:
-                                                  "You've tried 3 lessons. Please create an account or login to continue learning and save your progress to the cloud!",
-                                            );
-                                          }
-                                        },
+                                            ),
+                                            SizedBox(
+                                              width: width,
+                                              child: Column(
+                                                children: List.generate(
+                                                    categoryPlans.length, (index) {
+                                                  final plan = categoryPlans[index];
+                                                  final completed = progress.getCompleted(
+                                                    plan.id,
+                                                  );
+                                                  final total = plan.steps.length;
+                                                  final align =
+                                                      alignments[index % alignments.length];
+
+                                                  return SizedBox(
+                                                    height: rowHeight,
+                                                    width: width,
+                                                    child: MapNode(
+                                                      plan: plan,
+                                                      completed: completed,
+                                                      total: total,
+                                                      alignment: align,
+                                                      onLongPress: () =>
+                                                          _showOptions(context, plan),
+                                                      onTap: () async {
+                                                        if (progress.canTryLesson(plan.id)) {
+                                                          progress.updateLastLesson(plan.id);
+                                                          await Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute(
+                                                              builder: (_) => LessonScreen(
+                                                                category: plan.category,
+                                                                lessonId: plan.id,
+                                                              ),
+                                                            ),
+                                                          );
+                                                          widget.onReturn();
+                                                        } else {
+                                                          ThaiDialogs.showSignupPrompt(
+                                                            context,
+                                                            title:
+                                                                "Trial Limit Reached! 🚀",
+                                                            message:
+                                                                "You've tried 3 lessons. Please create an account or login to continue learning and save your progress to the cloud!",
+                                                          );
+                                                        }
+                                                      },
+                                                    ),
+                                                  );
+                                                }),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                    );
-                                  }),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                      ],
-                    );
-                  },
-                );
-              },
-            );
-          },
-        ),
-      ),
+                                      const SizedBox(height: 24),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          );
+                        }),
+                      ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

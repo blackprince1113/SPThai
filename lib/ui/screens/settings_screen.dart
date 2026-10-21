@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:superthai/core/services/theme_service.dart';
 import 'package:superthai/core/services/auth_service.dart';
@@ -198,10 +199,20 @@ class SettingsScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Center(
-                    child: Text(
-                      "Version 1.2.8 (Build 48)",
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                  Center(
+                    child: FutureBuilder<PackageInfo>(
+                      future: PackageInfo.fromPlatform(),
+                      builder: (context, snapshot) {
+                        final version = snapshot.data?.version ?? "1.2.8";
+                        final buildNumber = snapshot.data?.buildNumber;
+                        final buildText = (buildNumber != null && buildNumber.isNotEmpty)
+                            ? " (Build $buildNumber)"
+                            : "";
+                        return Text(
+                          "Version $version$buildText",
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(height: 40),
