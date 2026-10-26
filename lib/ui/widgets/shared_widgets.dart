@@ -21,7 +21,7 @@ class ThaiAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.actions,
     this.leading,
     this.leadingWidth,
-    this.showProfile = true,
+    this.showProfile = false,
     this.centerTitle,
   });
 
@@ -57,7 +57,7 @@ class ThaiAppBar extends StatelessWidget implements PreferredSizeWidget {
       backgroundColor: theme.scaffoldBackgroundColor,
       surfaceTintColor: theme.scaffoldBackgroundColor,
       elevation: 0,
-      centerTitle: centerTitle ?? false,
+      centerTitle: centerTitle ?? true,
       title:
           titleWidget ??
           Text(

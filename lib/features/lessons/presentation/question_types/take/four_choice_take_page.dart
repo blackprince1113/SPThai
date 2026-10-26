@@ -59,52 +59,52 @@ class _FourChoiceTakePageState extends State<FourChoiceTakePage> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Column(
               children: [
-                const SizedBox(height: 10),
+                const SizedBox(height: 24),
                 ThaiLessonProgress(
                   currentIndex: widget.currentIndex,
                   totalSteps: widget.totalSteps,
                 ),
-                const SizedBox(height: 32),
-                ThaiQuestionCard(
-                  header: "CHOOSE THE CORRECT MEANING",
-                  illustrationSource: widget.word.imageUrl,
-                  illustrationHeight: 120,
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 24,
-                    horizontal: 24,
+                const SizedBox(height: 36),
+                ThaiSectionLabel(
+                  label: "CHOOSE THE CORRECT MEANING",
+                  color: AppTheme.primaryColor,
+                  fontSize: 12,
+                  padding: const EdgeInsets.only(bottom: 24),
+                ),
+                if (widget.word.imageUrl.isNotEmpty) ...[
+                  ThaiIllustration(
+                    source: widget.word.imageUrl,
+                    height: 120,
                   ),
-                  child: Column(
-                    children: [
-                      Text(
-                        widget.word.thai,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: AppTheme.getResponsiveFontSize(
-                            widget.word.thai,
-                            38,
-                          ),
-                          fontWeight: FontWeight.bold,
-                          color:
-                              Theme.of(
-                                context,
-                              ).textTheme.headlineLarge?.color ??
-                              AppTheme.textColor,
-                        ),
-                      ),
-                      if (widget.word.phonetic.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          widget.word.phonetic,
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: theme.disabledColor,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ],
-                    ],
+                  const SizedBox(height: 16),
+                ],
+                Text(
+                  widget.word.thai,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: AppTheme.getResponsiveFontSize(
+                      widget.word.thai,
+                      38,
+                    ),
+                    fontWeight: FontWeight.bold,
+                    color:
+                        Theme.of(
+                          context,
+                        ).textTheme.headlineLarge?.color ??
+                        AppTheme.textColor,
                   ),
                 ),
+                if (widget.word.phonetic.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.word.phonetic,
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: theme.disabledColor,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 40),
                 ..._controller.choices.map(
                   (choice) => ThaiAnswerChoiceButton(

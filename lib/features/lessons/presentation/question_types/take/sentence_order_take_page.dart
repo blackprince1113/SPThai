@@ -58,26 +58,28 @@ class _SentenceOrderTakePageState extends State<SentenceOrderTakePage> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Column(
               children: [
-                const SizedBox(height: 10),
+                const SizedBox(height: 24),
                 ThaiLessonProgress(
                   currentIndex: widget.currentIndex,
                   totalSteps: widget.totalSteps,
                 ),
-                const SizedBox(height: 32),
-                ThaiQuestionCard(
-                  header: "ARRANGE THE SENTENCE",
-                  padding: const EdgeInsets.all(32),
-                  child: Text(
-                    widget.word.english,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: AppTheme.getResponsiveFontSize(
-                        widget.word.english,
-                        24,
-                      ),
-                      fontWeight: FontWeight.bold,
-                      color: theme.textTheme.titleLarge?.color,
+                const SizedBox(height: 36),
+                ThaiSectionLabel(
+                  label: "ARRANGE THE SENTENCE",
+                  color: AppTheme.primaryColor,
+                  fontSize: 12,
+                  padding: const EdgeInsets.only(bottom: 24),
+                ),
+                Text(
+                  widget.word.english,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: AppTheme.getResponsiveFontSize(
+                      widget.word.english,
+                      24,
                     ),
+                    fontWeight: FontWeight.bold,
+                    color: theme.textTheme.titleLarge?.color,
                   ),
                 ),
                 const SizedBox(height: 40),

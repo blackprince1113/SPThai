@@ -32,12 +32,12 @@ class InfoTakePage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 8),
+            const SizedBox(height: 24),
             ThaiLessonProgress(
               currentIndex: currentIndex,
               totalSteps: totalSteps,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 36),
             if (imageUrl.isNotEmpty && imageUrl.startsWith('http'))
               ClipRRect(
                 borderRadius: BorderRadius.circular(20),

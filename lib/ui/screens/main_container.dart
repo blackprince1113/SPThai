@@ -4,6 +4,7 @@ import 'package:superthai/features/lessons/presentation/screens/lesson_selection
 import 'package:superthai/features/lessons/presentation/screens/lesson_editor_screen.dart';
 import 'package:superthai/ui/screens/favorites_screen.dart';
 import 'package:superthai/ui/screens/discover_screen.dart';
+import 'package:superthai/ui/screens/settings_screen.dart';
 import 'package:superthai/ui/widgets/app_drawer.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/core/services/auth_service.dart';
@@ -22,7 +23,6 @@ class MainContainerState extends State<MainContainer> {
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
   int _selectedIndex = 0;
   String? _selectedCategory;
-  LessonPlan? _editingPlan;
 
   final List<bool> _loadedPages = [true, false, false, false];
 
@@ -42,36 +42,23 @@ class MainContainerState extends State<MainContainer> {
   }
 
   void setSelectedIndex(int index) {
-    final isAdmin = authService.isAdmin;
-    if (index == 3 && !isAdmin) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Only Admins can access the Create section. 🛡️"),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
     setState(() {
-      if (_selectedIndex == 3 && index != 3) {
-        _editingPlan = null;
-      }
       _selectedIndex = index;
       _loadedPages[index] = true;
     });
   }
 
   void switchToCreate([LessonPlan? plan]) {
-    setState(() {
-      _editingPlan = plan;
-      _selectedIndex = 3;
-      _loadedPages[3] = true;
-    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateScreen(existingPlan: plan),
+      ),
+    );
   }
 
   void switchToLesson() {
     setState(() {
-      _editingPlan = null;
       _selectedIndex = 0;
     });
   }
@@ -81,24 +68,16 @@ class MainContainerState extends State<MainContainer> {
     return ListenableBuilder(
       listenable: authService,
       builder: (context, _) {
-        final isAdmin = authService.isAdmin;
-
-        int effectiveIndex = _selectedIndex;
-        int maxIndex = isAdmin ? 3 : 2;
-        if (effectiveIndex > maxIndex) {
-          effectiveIndex = 0;
-        }
-
         return Scaffold(
           key: scaffoldKey,
           drawer: const AppDrawer(),
           body: IndexedStack(
-            index: effectiveIndex,
+            index: _selectedIndex,
             children: [
               LessonSelectionScreen(selectedCategory: _selectedCategory),
               _buildLazyPage(1, () => const FavoritesScreen()),
               _buildLazyPage(2, () => const DiscoverScreen()),
-              _buildLazyPage(3, () => CreateScreen(existingPlan: _editingPlan)),
+              _buildLazyPage(3, () => const SettingsScreen()),
             ],
           ),
           bottomNavigationBar: Container(
@@ -112,7 +91,7 @@ class MainContainerState extends State<MainContainer> {
               ],
             ),
             child: NavigationBar(
-              selectedIndex: effectiveIndex,
+              selectedIndex: _selectedIndex,
               onDestinationSelected: setSelectedIndex,
               backgroundColor: Theme.of(context).cardColor,
               indicatorColor: Colors.transparent,
@@ -142,15 +121,14 @@ class MainContainerState extends State<MainContainer> {
                   ),
                   label: 'Discover',
                 ),
-                if (isAdmin)
-                  NavigationDestination(
-                    icon: const Icon(Icons.add_circle_outline_rounded),
-                    selectedIcon: Icon(
-                      Icons.add_circle_rounded,
-                      color: AppTheme.primaryColor,
-                    ),
-                    label: 'Create',
+                NavigationDestination(
+                  icon: const Icon(Icons.person_outline_rounded),
+                  selectedIcon: Icon(
+                    Icons.person_rounded,
+                    color: AppTheme.primaryColor,
                   ),
+                  label: 'Profile',
+                ),
               ],
             ),
           ),

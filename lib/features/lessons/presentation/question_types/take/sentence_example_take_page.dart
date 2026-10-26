@@ -66,12 +66,12 @@ class _SentenceExampleTakePageState extends State<SentenceExampleTakePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 10),
+            const SizedBox(height: 24),
             ThaiLessonProgress(
               currentIndex: widget.currentIndex,
               totalSteps: widget.totalSteps,
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 36),
             Center(
               child: ThaiSectionLabel(
                 label: "EXAMPLE SENTENCES",

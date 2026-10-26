@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/core/models/models.dart';
+import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:superthai/features/lessons/presentation/question_types/controllers/listening_choice_controller.dart';
 
@@ -72,20 +73,22 @@ class _ListeningChoiceTakePageState extends State<ListeningChoiceTakePage> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Column(
               children: [
-                const SizedBox(height: 10),
+                const SizedBox(height: 24),
                 ThaiLessonProgress(
                   currentIndex: widget.currentIndex,
                   totalSteps: widget.totalSteps,
                 ),
-                const SizedBox(height: 32),
-                ThaiQuestionCard(
-                  header: "LISTEN AND CHOOSE",
-                  padding: const EdgeInsets.all(32),
-                  child: ThaiSoundButtonsRow(
-                    onNormal: _controller.speakThaiNormal,
-                    onSlow: _controller.speakThaiSlow,
-                    spacing: 48,
-                  ),
+                const SizedBox(height: 36),
+                ThaiSectionLabel(
+                  label: "LISTEN AND CHOOSE",
+                  color: AppTheme.primaryColor,
+                  fontSize: 12,
+                  padding: const EdgeInsets.only(bottom: 24),
+                ),
+                ThaiSoundButtonsRow(
+                  onNormal: _controller.speakThaiNormal,
+                  onSlow: _controller.speakThaiSlow,
+                  spacing: 48,
                 ),
                 const SizedBox(height: 40),
                 ..._controller.choices.map(

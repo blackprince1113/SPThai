@@ -48,32 +48,31 @@ class _MeaningTakePageState extends State<MeaningTakePage> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Column(
               children: [
-                const SizedBox(height: 10),
+                const SizedBox(height: 24),
                 ThaiLessonProgress(
                   currentIndex: widget.currentIndex,
                   totalSteps: widget.totalSteps,
                 ),
-                const SizedBox(height: 32),
-                ThaiQuestionCard(
-                  header: "TYPE THE CORRECT MEANING",
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 40,
-                    horizontal: 24,
-                  ),
-                  child: Text(
-                    widget.sentence.sentence,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: AppTheme.getResponsiveFontSize(
-                        widget.sentence.sentence,
-                        28,
-                      ),
-                      fontWeight: FontWeight.bold,
-                      color:
-                          Theme.of(context).textTheme.titleLarge?.color ??
-                          AppTheme.textColor,
-                      height: 1.5,
+                const SizedBox(height: 36),
+                ThaiSectionLabel(
+                  label: "TYPE THE CORRECT MEANING",
+                  color: AppTheme.primaryColor,
+                  fontSize: 12,
+                  padding: const EdgeInsets.only(bottom: 24),
+                ),
+                Text(
+                  widget.sentence.sentence,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: AppTheme.getResponsiveFontSize(
+                      widget.sentence.sentence,
+                      28,
                     ),
+                    fontWeight: FontWeight.bold,
+                    color:
+                        Theme.of(context).textTheme.titleLarge?.color ??
+                        AppTheme.textColor,
+                    height: 1.5,
                   ),
                 ),
                 const SizedBox(height: 40),

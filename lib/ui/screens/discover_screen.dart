@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/data_service.dart';
+import 'package:superthai/core/services/media_preload_service.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:superthai/ui/screens/add_discover_screen.dart';
@@ -20,6 +21,11 @@ class DiscoverScreen extends StatefulWidget {
 class _DiscoverScreenState extends State<DiscoverScreen> {
   late Future<List<DiscoverItem>> _discoverFuture;
 
+  bool _hasCheckedMedia = false;
+  bool _isDownloadingMedia = false;
+  double _downloadProgress = 0.0;
+  String _downloadProgressText = '';
+
   @override
   void initState() {
     super.initState();
@@ -29,6 +35,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   void _refreshDiscover() {
     if (!mounted) return;
     setState(() {
+      _hasCheckedMedia = false;
       _discoverFuture = DataService.instance.getAllDiscoverItems();
     });
   }
@@ -61,8 +68,205 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
     }
   }
 
+  Future<void> _checkAndPreloadMedia(List<DiscoverItem> items) async {
+    final urls = items
+        .map((item) => item.imageUrl?.trim())
+        .whereType<String>()
+        .where((url) =>
+            url.isNotEmpty &&
+            (url.startsWith('http://') || url.startsWith('https://')))
+        .toSet();
+
+    if (urls.isEmpty || !mounted) return;
+
+    final uncachedUrls =
+        await MediaPreloadService.filterUncachedUrls(urls);
+    if (uncachedUrls.isEmpty || !mounted) return;
+
+    final totalBytes =
+        await MediaPreloadService.getEstimatedTotalBytes(uncachedUrls);
+    final formattedSize = MediaPreloadService.formatBytes(totalBytes);
+
+    if (!mounted) return;
+
+    final shouldDownload = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.cloud_download_rounded, color: AppTheme.primaryColor),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'ดาวน์โหลดเนื้อหาเพิ่มเติม',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'หน้า Discover มีไฟล์รูปภาพเพิ่มเติมประมาณ $formattedSize (${uncachedUrls.length} รายการ)\n\nคุณต้องการดาวน์โหลดไว้ล่วงหน้าเพื่อการใช้งานที่ราบรื่นหรือไม่?',
+          style: const TextStyle(fontSize: 14, height: 1.4),
+        ),
+        actionsPadding:
+            const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: const Text(
+                      'ดาวน์โหลด',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          Theme.of(context).brightness == Brightness.light
+                              ? Colors.grey.shade200
+                              : Colors.grey.shade800,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(
+                      'กลับ',
+                      style: TextStyle(
+                        color:
+                            Theme.of(context).brightness == Brightness.light
+                                ? Colors.black87
+                                : Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDownload == true && mounted) {
+      setState(() {
+        _isDownloadingMedia = true;
+        _downloadProgress = 0.0;
+        _downloadProgressText = 'กำลังเตรียมดาวน์โหลด...';
+      });
+
+      await MediaPreloadService.preloadImages(
+        uncachedUrls,
+        context,
+        onProgress: (completed, total) {
+          if (!mounted) return;
+          setState(() {
+            _downloadProgress = total > 0 ? completed / total : 1.0;
+            _downloadProgressText =
+                'ดาวน์โหลดรูปภาพ $completed / $total รายการ...';
+          });
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _isDownloadingMedia = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildDownloadingWidget() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.downloading_rounded,
+              size: 64,
+              color: AppTheme.primaryColor,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              "กำลังดาวน์โหลดเนื้อหา...",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              _downloadProgressText,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppTheme.lightTextColor,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: _downloadProgress,
+                minHeight: 10,
+                backgroundColor: AppTheme.primaryColor.withValues(
+                  alpha: 0.15,
+                ),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  AppTheme.primaryColor,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${(_downloadProgress * 100).toInt()}%',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isDownloadingMedia) {
+      return Scaffold(
+        appBar: const ThaiAppBar(title: "Discover"),
+        body: _buildDownloadingWidget(),
+      );
+    }
+
     return ListenableBuilder(
       listenable: AuthService.instance,
       builder: (context, _) {
@@ -110,6 +314,13 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 }
 
                 final items = snapshot.data ?? [];
+
+                if (!_hasCheckedMedia && items.isNotEmpty) {
+                  _hasCheckedMedia = true;
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _checkAndPreloadMedia(items);
+                  });
+                }
 
                 if (items.isEmpty) {
                   return ListView(

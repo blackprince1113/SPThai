@@ -1,22 +1,99 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:provider/provider.dart';
 import 'package:superthai/core/models/models.dart';
-import 'package:superthai/core/services/auth_service.dart';
 import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/screens/main_container.dart';
-import 'package:superthai/ui/screens/login_screen.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
+import 'package:superthai/features/lessons/presentation/screens/lesson_screen.dart';
 
-class AppDrawer extends StatelessWidget {
+class _SearchResult {
+  final LessonPlan plan;
+  final String matchReason;
+
+  _SearchResult({required this.plan, required this.matchReason});
+}
+
+class AppDrawer extends StatefulWidget {
   const AppDrawer({super.key});
+
+  @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+  String _searchQuery = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() {
+      _searchQuery = '';
+    });
+  }
+
+  List<_SearchResult> _filterPlans(List<LessonPlan> plans, String rawQuery) {
+    final query = rawQuery.trim().toLowerCase();
+    if (query.isEmpty) return [];
+
+    final List<_SearchResult> results = [];
+
+    for (var plan in plans) {
+      bool matched = false;
+      String reason = '';
+
+      if (plan.title.toLowerCase().contains(query)) {
+        matched = true;
+        reason = 'ชื่อบทเรียน';
+      } else if (plan.category.toLowerCase().contains(query)) {
+        matched = true;
+        reason = 'หมวดหมู่: ${plan.category}';
+      } else {
+        for (var step in plan.steps) {
+          if (step.english.toLowerCase().contains(query) ||
+              step.thai.toLowerCase().contains(query) ||
+              step.phonetic.toLowerCase().contains(query) ||
+              step.question.toLowerCase().contains(query) ||
+              step.answer.toLowerCase().contains(query)) {
+            matched = true;
+            final snippet = step.english.isNotEmpty
+                ? step.english
+                : (step.thai.isNotEmpty ? step.thai : step.question);
+            reason = 'คำศัพท์/เนื้อหา: $snippet';
+            break;
+          }
+          if (step.conversation != null) {
+            for (var msg in step.conversation!) {
+              if (msg.text.toLowerCase().contains(query) ||
+                  msg.translation.toLowerCase().contains(query)) {
+                matched = true;
+                reason = 'การสนทนา: ${msg.text}';
+                break;
+              }
+            }
+            if (matched) break;
+          }
+        }
+      }
+
+      if (matched) {
+        results.add(_SearchResult(plan: plan, matchReason: reason));
+      }
+    }
+
+    return results;
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final auth = Provider.of<AuthService>(context);
-    final user = auth.currentUser;
-    final isAdmin = auth.isAdmin;
     final mainState = MainContainer.of(context);
     final currentIndex = mainState?.selectedIndex ?? 0;
     final selectedCategory = mainState?.selectedCategory;
@@ -25,66 +102,10 @@ class AppDrawer extends StatelessWidget {
       backgroundColor: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
-          // Drawer Header
-          UserAccountsDrawerHeader(
-            decoration: BoxDecoration(
-              color: AppTheme.primaryColor,
-            ),
-            currentAccountPicture: CircleAvatar(
-              backgroundColor: Colors.white,
-              child: Text(
-                user?.displayName?.isNotEmpty == true
-                    ? user!.displayName![0].toUpperCase()
-                    : (user?.email?.isNotEmpty == true
-                        ? user!.email![0].toUpperCase()
-                        : 'S'),
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ),
-            accountName: Text(
-              user?.displayName ?? (user != null ? 'User' : 'Guest'),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Colors.white,
-              ),
-            ),
-            accountEmail: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    user?.email ?? 'Welcome to SuperThai 🇹🇭',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (user != null && isAdmin)
-                  Container(
-                    margin: const EdgeInsets.only(right: 16, bottom: 4),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.amber,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      'ADMIN',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+          // Quick Search Header
+          _buildQuickSearchHeader(context),
 
-          // Categories List
+          // Search Results or Categories List
           Expanded(
             child: FutureBuilder<List<LessonPlan>>(
               future: dataService.getAllLessonPlans(),
@@ -100,9 +121,144 @@ class AppDrawer extends StatelessWidget {
                 }
                 final categoryNames = categoryMap.keys.toList();
 
+                if (plans.isEmpty &&
+                    snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  );
+                }
+
+                // --- WHEN SEARCHING ---
+                if (_searchQuery.trim().isNotEmpty) {
+                  final results = _filterPlans(plans, _searchQuery);
+                  final matchingCatNames = categoryNames
+                      .where((cat) => cat
+                          .toLowerCase()
+                          .contains(_searchQuery.trim().toLowerCase()))
+                      .toList();
+
+                  if (results.isEmpty && matchingCatNames.isEmpty) {
+                    return ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        const SizedBox(height: 32),
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 56,
+                          color: theme.disabledColor,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'ไม่พบบทเรียนที่ตรงกับ "$_searchQuery"',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'ลองค้นหาด้วยคำอื่น เช่น hotel, greeting, food หรือพิมพ์คีย์เวิร์ดสั้นๆ',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: theme.disabledColor,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Center(
+                          child: OutlinedButton.icon(
+                            onPressed: _clearSearch,
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            label: const Text('ล้างการค้นหา'),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  return ListView(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: 8,
+                    ),
+                    children: [
+                      // Header: SEARCH RESULTS
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.search_rounded,
+                                  size: 16,
+                                  color: AppTheme.primaryColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'SEARCH RESULTS',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppTheme.primaryColor,
+                                    letterSpacing: 1.2,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '${results.length} บทเรียน',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Matching Categories shortcuts
+                      if (matchingCatNames.isNotEmpty) ...[
+                        ...matchingCatNames.map((catName) {
+                          final catPlans = categoryMap[catName]!;
+                          final firstPlan = catPlans.first;
+                          final emoji = firstPlan.categoryEmoji.isNotEmpty
+                              ? firstPlan.categoryEmoji
+                              : (firstPlan.emoji.isNotEmpty
+                                  ? firstPlan.emoji
+                                  : '📚');
+                          return _buildCategoryResultTile(
+                            context,
+                            categoryName: catName,
+                            emoji: emoji,
+                            lessonCount: catPlans.length,
+                            mainState: mainState,
+                          );
+                        }),
+                        const Divider(height: 16),
+                      ],
+
+                      // Matched Lessons shortcuts
+                      ...results.map((res) {
+                        return _buildSearchResultTile(
+                          context,
+                          result: res,
+                          mainState: mainState,
+                        );
+                      }),
+                    ],
+                  );
+                }
+
+                // --- WHEN NOT SEARCHING (SHOW CATEGORIES) ---
                 return ListView(
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 8,
+                    horizontal: 8,
+                  ),
                   children: [
                     // Section Header: CATEGORIES
                     Padding(
@@ -142,13 +298,10 @@ class AppDrawer extends StatelessWidget {
                       ),
                     ),
 
-                    // Category Items List from Top to Bottom
-                    if (categoryNames.isEmpty &&
-                        snapshot.connectionState == ConnectionState.waiting)
+                    if (categoryNames.isEmpty)
                       const Padding(
                         padding: EdgeInsets.all(16),
-                        child: Center(
-                            child: CircularProgressIndicator(strokeWidth: 2)),
+                        child: Center(child: Text('ไม่มีหมวดหมู่')),
                       )
                     else
                       ...categoryNames.map((catName) {
@@ -182,60 +335,323 @@ class AppDrawer extends StatelessWidget {
             ),
           ),
 
-          // Footer & Logout / Login Button
+          // Footer
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                FutureBuilder<PackageInfo>(
-                  future: PackageInfo.fromPlatform(),
-                  builder: (context, snapshot) {
-                    final version = snapshot.data?.version ?? '1.2.8';
-                    return Text(
-                      'SuperThai v$version',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.textTheme.bodySmall?.color
-                            ?.withValues(alpha: 0.5),
-                      ),
-                    );
-                  },
+            child: Center(
+              child: FutureBuilder<PackageInfo>(
+                future: PackageInfo.fromPlatform(),
+                builder: (context, snapshot) {
+                  final version = snapshot.data?.version ?? '1.2.8';
+                  return Text(
+                    'SuperThai v$version',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.textTheme.bodySmall?.color
+                          ?.withValues(alpha: 0.5),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickSearchHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryColor = AppTheme.primaryColor;
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(16, topPadding + 12, 16, 16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [
+                  const Color(0xFF2C2C2C),
+                  const Color(0xFF1E1E1E),
+                ]
+              : [
+                  primaryColor,
+                  primaryColor.withValues(alpha: 0.88),
+                  AppTheme.secondaryColor,
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header Title
+          Text(
+            'ทางลัดค้นหาบทเรียน',
+            style: TextStyle(
+              color: isDark
+                  ? (theme.textTheme.titleLarge?.color ?? Colors.white)
+                  : Colors.white,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          // Search Bar Container
+          Container(
+            height: 46,
+            decoration: BoxDecoration(
+              color: isDark ? theme.cardColor : Colors.white,
+              borderRadius: BorderRadius.circular(23),
+              border: isDark
+                  ? Border.all(
+                      color: theme.dividerColor.withValues(alpha: 0.15),
+                    )
+                  : null,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
                 ),
-                if (user != null)
-                  TextButton.icon(
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      await auth.logout();
-                    },
-                    icon: const Icon(Icons.logout_rounded,
-                        size: 18, color: Colors.redAccent),
-                    label: const Text(
-                      'Logout',
-                      style: TextStyle(color: Colors.redAccent),
+              ],
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 14),
+                Icon(
+                  Icons.search_rounded,
+                  color: primaryColor,
+                  size: 22,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDark
+                          ? (theme.textTheme.bodyLarge?.color ?? Colors.white)
+                          : Colors.black87,
                     ),
-                  )
-                else
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const LoginScreen()),
-                      );
-                    },
-                    icon: Icon(Icons.login_rounded,
-                        size: 18, color: AppTheme.primaryColor),
-                    label: Text(
-                      'Login',
-                      style: TextStyle(color: AppTheme.primaryColor),
+                    decoration: InputDecoration(
+                      hintText: 'พิมพ์ Keywords (เช่น hotel, greeting)...',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? theme.hintColor : Colors.grey,
+                      ),
+                      filled: false,
+                      fillColor: Colors.transparent,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      isDense: true,
                     ),
+                    onChanged: (val) {
+                      setState(() {
+                        _searchQuery = val;
+                      });
+                    },
                   ),
+                ),
+                if (_searchQuery.isNotEmpty)
+                  IconButton(
+                    icon: Icon(
+                      Icons.cancel_rounded,
+                      size: 18,
+                      color: isDark ? theme.hintColor : Colors.grey,
+                    ),
+                    onPressed: _clearSearch,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                const SizedBox(width: 12),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchResultTile(
+    BuildContext context, {
+    required _SearchResult result,
+    required MainContainerState? mainState,
+  }) {
+    final theme = Theme.of(context);
+    final primaryColor = AppTheme.primaryColor;
+    final plan = result.plan;
+    final emoji = plan.emoji.isNotEmpty
+        ? plan.emoji
+        : (plan.categoryEmoji.isNotEmpty ? plan.categoryEmoji : '📚');
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: primaryColor.withValues(alpha: 0.15),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: primaryColor.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            emoji,
+            style: const TextStyle(fontSize: 20),
+          ),
+        ),
+        title: Text(
+          plan.title,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: primaryColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                plan.category,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: primaryColor,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                result.matchReason,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.disabledColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        trailing: Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: primaryColor.withValues(alpha: 0.12),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.play_arrow_rounded,
+            color: primaryColor,
+            size: 18,
+          ),
+        ),
+        onTap: () {
+          Navigator.pop(context);
+          mainState?.selectCategory(plan.category);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => LessonScreen(
+                category: plan.category,
+                lessonId: plan.id,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCategoryResultTile(
+    BuildContext context, {
+    required String categoryName,
+    required String emoji,
+    required int lessonCount,
+    required MainContainerState? mainState,
+  }) {
+    final primaryColor = AppTheme.primaryColor;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+      decoration: BoxDecoration(
+        color: primaryColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: primaryColor.withValues(alpha: 0.25),
+        ),
+      ),
+      child: ListTile(
+        leading: Container(
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: primaryColor.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            emoji,
+            style: const TextStyle(fontSize: 20),
+          ),
+        ),
+        title: Text(
+          'หมวดหมู่: $categoryName',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+            color: primaryColor,
+          ),
+        ),
+        subtitle: Text(
+          'เปิดแผนที่เรียนทั้ง $lessonCount บทเรียน',
+          style: const TextStyle(fontSize: 11),
+        ),
+        trailing: Icon(
+          Icons.map_rounded,
+          color: primaryColor,
+          size: 20,
+        ),
+        onTap: () {
+          Navigator.pop(context);
+          mainState?.selectCategory(categoryName);
+        },
       ),
     );
   }
@@ -274,8 +690,9 @@ class AppDrawer extends StatelessWidget {
           style: TextStyle(
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
             fontSize: 14,
-            color:
-                isSelected ? primaryColor : theme.textTheme.bodyLarge?.color,
+            color: isSelected
+                ? primaryColor
+                : theme.textTheme.bodyLarge?.color,
           ),
         ),
         trailing: Container(
@@ -300,8 +717,7 @@ class AppDrawer extends StatelessWidget {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         onTap: onTap,
       ),
     );

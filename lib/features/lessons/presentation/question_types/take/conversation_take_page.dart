@@ -69,15 +69,13 @@ class _ConversationTakePageState extends State<ConversationTakePage> {
           );
         }
       });
-    } else {
-      StepResultNotification(true).dispatch(context);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isLast = _visibleCount >= widget.messages.length;
+    final hasMore = _visibleCount < widget.messages.length;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -85,13 +83,13 @@ class _ConversationTakePageState extends State<ConversationTakePage> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
               child: ThaiLessonProgress(
                 currentIndex: widget.currentIndex,
                 totalSteps: widget.totalSteps,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
@@ -122,16 +120,17 @@ class _ConversationTakePageState extends State<ConversationTakePage> {
                 },
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: SizedBox(
-                width: double.infinity,
-                child: ThaiButton(
-                  text: isLast ? "I'VE FINISHED!" : "NEXT MESSAGE",
-                  onPressed: _showNext,
+            if (hasMore)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ThaiButton(
+                    text: "NEXT MESSAGE",
+                    onPressed: _showNext,
+                  ),
                 ),
               ),
-            ),
           ],
         ),
       ),

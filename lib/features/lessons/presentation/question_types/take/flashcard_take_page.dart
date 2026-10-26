@@ -102,14 +102,15 @@ class _FlashcardTakePageState extends State<FlashcardTakePage> {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Column(
           children: [
-            const SizedBox(height: 10),
+            const SizedBox(height: 24),
             ThaiLessonProgress(
               currentIndex: widget.currentIndex,
               totalSteps: widget.totalSteps,
             ),
-            const SizedBox(height: 32),
-            ThaiQuestionCard(
-              headerWidget: Stack(
+            const SizedBox(height: 36),
+            SizedBox(
+              width: double.infinity,
+              child: Stack(
                 alignment: Alignment.center,
                 children: [
                   Text(
@@ -123,7 +124,7 @@ class _FlashcardTakePageState extends State<FlashcardTakePage> {
                     ),
                   ),
                   Positioned(
-                    right: 12,
+                    right: 0,
                     child: GestureDetector(
                       onTap: _toggleFavorite,
                       child: AnimatedContainer(
@@ -149,85 +150,63 @@ class _FlashcardTakePageState extends State<FlashcardTakePage> {
                   ),
                 ],
               ),
-              illustrationSource: widget.word.imageUrl,
-              illustrationHeight: 180,
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-              child: Column(
-                children: [
-                  Text(
-                    widget.word.thai,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: AppTheme.getResponsiveFontSize(
-                        widget.word.thai,
-                        38,
-                      ),
-                      fontWeight: FontWeight.bold,
-                      color:
-                          Theme.of(context).textTheme.headlineLarge?.color ??
-                          AppTheme.textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.word.phonetic,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: AppTheme.getResponsiveFontSize(
-                        widget.word.phonetic,
-                        20,
-                      ),
-                      color: AppTheme.primaryColor.withValues(alpha: 0.7),
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const Divider(height: 1),
-                  const SizedBox(height: 24),
-                  const ThaiSectionLabel(label: "MEANING"),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.word.english,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: AppTheme.getResponsiveFontSize(
-                        widget.word.english,
-                        28,
-                      ),
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  ThaiSoundButtonsRow(
-                    onNormal: speakThaiNormal,
-                    onSlow: speakThaiSlow,
-                    spacing: 48,
-                  ),
-                ],
+            ),
+            const SizedBox(height: 24),
+            if (widget.word.imageUrl.isNotEmpty) ...[
+              ThaiIllustration(
+                source: widget.word.imageUrl,
+                height: 180,
+              ),
+              const SizedBox(height: 24),
+            ],
+            Text(
+              widget.word.thai,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: AppTheme.getResponsiveFontSize(
+                  widget.word.thai,
+                  38,
+                ),
+                fontWeight: FontWeight.bold,
+                color:
+                    Theme.of(context).textTheme.headlineLarge?.color ??
+                    AppTheme.textColor,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.word.phonetic,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: AppTheme.getResponsiveFontSize(
+                  widget.word.phonetic,
+                  20,
+                ),
+                color: AppTheme.primaryColor.withValues(alpha: 0.7),
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Divider(height: 1),
+            const SizedBox(height: 24),
+            const ThaiSectionLabel(label: "MEANING"),
+            const SizedBox(height: 8),
+            Text(
+              widget.word.english,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: AppTheme.getResponsiveFontSize(
+                  widget.word.english,
+                  28,
+                ),
+                fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  elevation: 8,
-                  shadowColor: AppTheme.primaryColor.withValues(alpha: 0.4),
-                ),
-                onPressed: () {
-                  StepResultNotification(true).dispatch(context);
-                },
-                child: const Text(
-                  "I'VE GOT IT!",
-                  style: TextStyle(fontSize: 18, letterSpacing: 1.2),
-                ),
-              ),
+            ThaiSoundButtonsRow(
+              onNormal: speakThaiNormal,
+              onSlow: speakThaiSlow,
+              spacing: 48,
             ),
           ],
         ),

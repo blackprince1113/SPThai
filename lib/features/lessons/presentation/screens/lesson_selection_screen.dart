@@ -5,11 +5,11 @@ import 'package:superthai/core/services/auth_service.dart';
 import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/core/services/progress_service.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_screen.dart';
+import 'package:superthai/features/lessons/presentation/screens/lesson_editor_screen.dart';
 import 'package:superthai/ui/screens/main_container.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:superthai/ui/widgets/lesson_map_widgets.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
-import 'package:superthai/features/lessons/presentation/screens/manage_lessons_screen.dart';
 
 class LessonSelectionScreen extends StatefulWidget {
   final String? selectedCategory;
@@ -269,13 +269,13 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
         if (allPlans == null &&
             snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
-            appBar: ThaiAppBar(title: appBarTitle),
+            appBar: ThaiAppBar(title: appBarTitle, centerTitle: true),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
         if (snapshot.hasError && allPlans == null) {
           return Scaffold(
-            appBar: ThaiAppBar(title: appBarTitle),
+            appBar: ThaiAppBar(title: appBarTitle, centerTitle: true),
             body: Center(child: Text("Error: ${snapshot.error}")),
           );
         }
@@ -283,22 +283,8 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
         return Scaffold(
           appBar: ThaiAppBar(
             title: appBarTitle,
+            centerTitle: true,
             actions: [
-              Consumer<AuthService>(
-                builder: (context, auth, _) {
-                  if (!auth.isAdmin) return const SizedBox.shrink();
-                  return IconButton(
-                    icon:
-                        Icon(Icons.sort_rounded, color: AppTheme.primaryColor),
-                    onPressed: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ManageLessonsScreen(),
-                      ),
-                    ).then((_) => _refreshCategories()),
-                  );
-                },
-              ),
               Consumer<ProgressService>(
                 builder: (context, progress, _) {
                   return Row(
@@ -324,23 +310,63 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
               ),
             ],
           ),
-          body: Consumer<ProgressService>(
-            builder: (context, progress, _) {
-              return _LessonMap(
-                key: ValueKey(activeCategory ?? 'ALL'),
-                plans: filteredPlans,
-                progress: progress,
-                onReturn: _refreshCategories,
-                scrollController: _scrollController,
-                hasScrolled: _hasScrolled,
-                onScrolled: (val) => _hasScrolled = val,
-                categoryList: categoryList,
-                activeCategory: activeCategory,
-                onSelectCategory: (newCat) {
-                  MainContainer.of(context)?.selectCategory(newCat);
+          body: Stack(
+            children: [
+              Consumer<ProgressService>(
+                builder: (context, progress, _) {
+                  return _LessonMap(
+                    key: ValueKey(activeCategory ?? 'ALL'),
+                    plans: filteredPlans,
+                    progress: progress,
+                    onReturn: _refreshCategories,
+                    scrollController: _scrollController,
+                    hasScrolled: _hasScrolled,
+                    onScrolled: (val) => _hasScrolled = val,
+                    categoryList: categoryList,
+                    activeCategory: activeCategory,
+                    onSelectCategory: (newCat) {
+                      MainContainer.of(context)?.selectCategory(newCat);
+                    },
+                  );
                 },
-              );
-            },
+              ),
+              Consumer<AuthService>(
+                builder: (context, auth, _) {
+                  if (!auth.isAdmin) return const SizedBox.shrink();
+                  return Positioned(
+                    top: 16,
+                    right: 20,
+                    child: Tooltip(
+                      message: "Create Lesson",
+                      child: Material(
+                        elevation: 4,
+                        shape: const CircleBorder(),
+                        color: AppTheme.primaryColor,
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const CreateScreen(),
+                              ),
+                            ).then((_) => _refreshCategories());
+                          },
+                          child: const Padding(
+                            padding: EdgeInsets.all(12.0),
+                            child: Icon(
+                              Icons.add_rounded,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         );
       },
@@ -537,7 +563,12 @@ class _LessonMapState extends State<_LessonMap> {
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  MainContainer.of(screenContext)?.switchToCreate(plan);
+                  Navigator.push(
+                    screenContext,
+                    MaterialPageRoute(
+                      builder: (_) => CreateScreen(existingPlan: plan),
+                    ),
+                  ).then((_) => widget.onReturn());
                 },
               ),
               ListTile(
@@ -609,55 +640,14 @@ class _LessonMapState extends State<_LessonMap> {
         _accumulatedOverscroll = 0.0;
         final nextCat = catList[currentIndex + 1];
         widget.onSelectCategory!(nextCat);
-        _showCategoryToast(context, nextCat, isNext: true);
       } else if (_accumulatedOverscroll < -25.0 && currentIndex > 0) {
         _lastCategorySwitchTime = now;
         _accumulatedOverscroll = 0.0;
         final prevCat = catList[currentIndex - 1];
         widget.onSelectCategory!(prevCat);
-        _showCategoryToast(context, prevCat, isNext: false);
       }
     }
     return false;
-  }
-
-  void _showCategoryToast(
-    BuildContext context,
-    String categoryName, {
-    required bool isNext,
-  }) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              isNext
-                  ? Icons.arrow_downward_rounded
-                  : Icons.arrow_upward_rounded,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                isNext ? 'Next: $categoryName' : 'Previous: $categoryName',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 15,
-                ),
-              ),
-            ),
-          ],
-        ),
-        duration: const Duration(milliseconds: 1200),
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 80),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
   }
 
   @override

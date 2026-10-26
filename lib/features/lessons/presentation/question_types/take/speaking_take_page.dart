@@ -64,12 +64,12 @@ class _SpeakingTakePageState extends State<SpeakingTakePage> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Column(
               children: [
-                const SizedBox(height: 10),
+                const SizedBox(height: 24),
                 ThaiLessonProgress(
                   currentIndex: widget.currentIndex,
                   totalSteps: widget.totalSteps,
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 36),
                 _buildTargetCard(),
                 const SizedBox(height: 40),
                 _buildRecognizedTextArea(),
@@ -97,31 +97,14 @@ class _SpeakingTakePageState extends State<SpeakingTakePage> {
 
   Widget _buildTargetCard() {
     final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 20),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.primaryColor.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            "SPEAK THIS WORD",
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.primaryColor,
-              letterSpacing: 1.5,
-            ),
-          ),
+    return Column(
+      children: [
+        ThaiSectionLabel(
+          label: "SPEAK THIS WORD",
+          color: AppTheme.primaryColor,
+          fontSize: 12,
+          padding: const EdgeInsets.only(bottom: 16),
+        ),
           const SizedBox(height: 16),
           if (widget.word.imageUrl.isNotEmpty) ...[
             ThaiIllustration(
@@ -177,8 +160,7 @@ class _SpeakingTakePageState extends State<SpeakingTakePage> {
             ],
           ),
         ],
-      ),
-    );
+      );
   }
 
   Widget _buildRecognizedTextArea() {
