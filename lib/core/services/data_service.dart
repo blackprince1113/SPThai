@@ -19,28 +19,8 @@ class DataService extends ChangeNotifier {
   int _plansRevision = 0;
   final Map<String, List<WordEntry>> _wordsByCategoryCache = {};
 
-  static const String wordsCollection = 'words';
   static const String newsCollection = 'discover';
   DataService._internal();
-
-  Future<void> addWord(WordEntry entry) async {
-    await _db
-        .collection(wordsCollection)
-        .doc(entry.id)
-        .set(entry.toMap(), SetOptions(merge: true));
-  }
-
-  Future<List<WordEntry>> getAllWords() async {
-    final snapshot = await _db.collection(wordsCollection).get();
-    return snapshot.docs.map((doc) => WordEntry.fromMap(doc.data())).toList();
-  }
-
-  Future<WordEntry?> getWordById(String id) async {
-    final doc = await _db.collection(wordsCollection).doc(id).get();
-    return doc.exists && doc.data() != null
-        ? WordEntry.fromMap(doc.data()!)
-        : null;
-  }
 
   Future<List<LessonPlan>> getAllLessonPlans({
     bool forceRefresh = false,
@@ -155,11 +135,6 @@ class DataService extends ChangeNotifier {
 
   Future<LessonPlan?> getLessonPlanByCategory(String category) async {
     return _lessonRepository.getByCategory(category);
-  }
-
-  Future<bool> isDatabaseEmpty() async {
-    final snapshot = await _db.collection(wordsCollection).limit(1).get();
-    return snapshot.docs.isEmpty;
   }
 
   Future<void> toggleFavorite(WordEntry word) async {

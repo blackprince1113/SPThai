@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/core/viewmodels/lesson_view_model.dart';
-import 'package:superthai/core/services/media_preload_service.dart';
 import 'package:superthai/features/lessons/presentation/question_types/take/listening_take_page.dart';
 import 'package:superthai/features/lessons/presentation/question_types/take/listening_choice_take_page.dart';
 import 'package:superthai/features/lessons/presentation/question_types/take/speaking_take_page.dart';
@@ -31,12 +30,6 @@ class _LessonScreenState extends State<LessonScreen> {
   late final LessonViewModel _viewModel;
   late final PageController _pageController;
 
-  bool _hasCheckedMedia = false;
-  bool _isCheckingMedia = true;
-  bool _isDownloadingMedia = false;
-  double _downloadProgress = 0.0;
-  String _downloadProgressText = '';
-
   @override
   void initState() {
     super.initState();
@@ -51,17 +44,6 @@ class _LessonScreenState extends State<LessonScreen> {
   void _onViewModelUpdate() {
     if (_viewModel.isLoading) return;
 
-    if (!_hasCheckedMedia) {
-      _hasCheckedMedia = true;
-      if (_viewModel.steps.isNotEmpty) {
-        _checkAndPreloadMedia();
-      } else {
-        setState(() {
-          _isCheckingMedia = false;
-        });
-      }
-    }
-
     if (_pageController.hasClients) {
       if (_pageController.page?.round() != _viewModel.currentIndex) {
         _pageController.animateToPage(
@@ -69,142 +51,6 @@ class _LessonScreenState extends State<LessonScreen> {
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeInOut,
         );
-      }
-    }
-  }
-
-  Future<void> _checkAndPreloadMedia() async {
-    try {
-      final steps = _viewModel.steps;
-      final allImageUrls = MediaPreloadService.extractImageUrls(steps);
-      if (allImageUrls.isEmpty || !mounted) return;
-
-      final uncachedUrls =
-          await MediaPreloadService.filterUncachedUrls(allImageUrls);
-      if (uncachedUrls.isEmpty || !mounted) return;
-
-      final totalBytes =
-          await MediaPreloadService.getEstimatedTotalBytes(uncachedUrls);
-      final formattedSize = MediaPreloadService.formatBytes(totalBytes);
-
-      if (!mounted) return;
-
-      final shouldDownload = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.cloud_download_rounded, color: AppTheme.primaryColor),
-              const SizedBox(width: 10),
-              const Expanded(
-                child: Text(
-                  'ดาวน์โหลดเนื้อหาเพิ่มเติม',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          content: Text(
-            'บทเรียนนี้มีไฟล์รูปภาพเพิ่มเติมประมาณ $formattedSize (${uncachedUrls.length} รายการ)\n\nคุณต้องการดาวน์โหลดไว้ล่วงหน้าเพื่อการใช้งานที่ราบรื่นหรือไม่?',
-            style: const TextStyle(fontSize: 14, height: 1.4),
-          ),
-          actionsPadding:
-              const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-          actions: [
-            Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text(
-                        'ดาวน์โหลด',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SizedBox(
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).brightness == Brightness.light
-                                ? Colors.grey.shade200
-                                : Colors.grey.shade800,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: Text(
-                        'กลับ',
-                        style: TextStyle(
-                          color:
-                              Theme.of(context).brightness == Brightness.light
-                                  ? Colors.black87
-                                  : Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-
-      if (shouldDownload == true && mounted) {
-        setState(() {
-          _isDownloadingMedia = true;
-          _downloadProgress = 0.0;
-          _downloadProgressText = 'กำลังเตรียมดาวน์โหลด...';
-        });
-
-        await MediaPreloadService.preloadImages(
-          uncachedUrls,
-          context,
-          onProgress: (completed, total) {
-            if (!mounted) return;
-            setState(() {
-              _downloadProgress = total > 0 ? completed / total : 1.0;
-              _downloadProgressText =
-                  'ดาวน์โหลดรูปภาพ $completed / $total รายการ...';
-            });
-          },
-        );
-      } else if (shouldDownload == false && mounted) {
-        Navigator.pop(context);
-        return;
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isCheckingMedia = false;
-          _isDownloadingMedia = false;
-        });
       }
     }
   }
@@ -339,7 +185,7 @@ class _LessonScreenState extends State<LessonScreen> {
     return ListenableBuilder(
       listenable: _viewModel,
       builder: (context, _) {
-        if (_viewModel.isLoading || _isCheckingMedia || _isDownloadingMedia) {
+        if (_viewModel.isLoading) {
           return Scaffold(body: _buildLoadingScreen());
         }
         if (_viewModel.isCompleted) {
@@ -465,60 +311,6 @@ class _LessonScreenState extends State<LessonScreen> {
   }
 
   Widget _buildLoadingScreen() {
-    if (_isDownloadingMedia) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.downloading_rounded,
-                size: 64,
-                color: AppTheme.primaryColor,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                "กำลังดาวน์โหลดเนื้อหา...",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _downloadProgressText,
-                style: const TextStyle(
-                  fontSize: 14,
-                  color: AppTheme.lightTextColor,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: _downloadProgress,
-                  minHeight: 10,
-                  backgroundColor: AppTheme.primaryColor.withValues(
-                    alpha: 0.15,
-                  ),
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    AppTheme.primaryColor,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '${(_downloadProgress * 100).toInt()}%',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.primaryColor,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     if (!_viewModel.isLoading && _viewModel.steps.isEmpty) {
       return Center(
         child: Column(
@@ -556,7 +348,7 @@ class _LessonScreenState extends State<LessonScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            _viewModel.isLoading || _isCheckingMedia
+            _viewModel.isLoading
                 ? "Loading content..."
                 : "Question ${_viewModel.currentIndex + 1} / ${_viewModel.steps.length}",
             style: const TextStyle(
