@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:superthai/features/vocabulary/data/favorite_repository.dart';
 import 'package:superthai/features/lessons/data/firestore_lesson_repository.dart';
 import 'package:superthai/features/lessons/data/lesson_repository.dart';
@@ -20,15 +22,60 @@ class DataService extends ChangeNotifier {
   final Map<String, List<WordEntry>> _wordsByCategoryCache = {};
 
   static const String newsCollection = 'discover';
-  DataService._internal();
+  static const String _lessonCacheKey = 'cached_lesson_plans_v2';
 
-  Future<List<LessonPlan>> getAllLessonPlans({
-    bool forceRefresh = false,
-  }) async {
-    if (_cachedPlans != null && !forceRefresh) {
+  DataService._internal() {
+    _initLocalCache();
+  }
+
+  Future<void> _initLocalCache() async {
+    final plans = await _loadFromLocalCache();
+    if (plans != null && plans.isNotEmpty && _cachedPlans == null) {
+      _cachedPlans = plans;
+      notifyListeners();
+    }
+  }
+
+  Future<List<LessonPlan>?> _loadFromLocalCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString(_lessonCacheKey);
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final List<dynamic> decoded = jsonDecode(jsonStr);
+        return decoded
+            .map((item) => LessonPlan.fromMap(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+    } catch (e) {
+      debugPrint("Error reading local lesson cache: $e");
+    }
+    return null;
+  }
+
+  Future<void> _savePlansToLocalCache(List<LessonPlan> plans) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = jsonEncode(plans.map((p) => p.toMap()).toList());
+      await prefs.setString(_lessonCacheKey, jsonStr);
+    } catch (e) {
+      debugPrint("Error writing local lesson cache: $e");
+    }
+  }
+
+  Future<List<LessonPlan>> getAllLessonPlans() async {
+    if (_cachedPlans != null) {
+      _syncPlansInBackground();
       return _cachedPlans!;
     }
-    if (_plansLoadFuture != null && !forceRefresh) {
+
+    final diskPlans = await _loadFromLocalCache();
+    if (diskPlans != null && diskPlans.isNotEmpty) {
+      _cachedPlans = diskPlans;
+      _syncPlansInBackground();
+      return diskPlans;
+    }
+
+    if (_plansLoadFuture != null) {
       return _plansLoadFuture!;
     }
 
@@ -39,6 +86,9 @@ class DataService extends ChangeNotifier {
       final plans = await load;
       if (revision == _plansRevision && identical(_plansLoadFuture, load)) {
         _cachedPlans = plans;
+        if (plans.isNotEmpty) {
+          _savePlansToLocalCache(plans);
+        }
       }
       return plans;
     } finally {
@@ -48,6 +98,24 @@ class DataService extends ChangeNotifier {
     }
   }
 
+  void _syncPlansInBackground() {
+    if (_plansLoadFuture != null) return;
+    final revision = _plansRevision;
+    final load = _loadLessonPlans();
+    _plansLoadFuture = load;
+    load.then((plans) {
+      if (revision == _plansRevision && plans.isNotEmpty) {
+        _cachedPlans = plans;
+        _savePlansToLocalCache(plans);
+        notifyListeners();
+      }
+    }).catchError((e) {
+      debugPrint("Background sync error: $e");
+    }).whenComplete(() {
+      _plansLoadFuture = null;
+    });
+  }
+
   Future<List<LessonPlan>> _loadLessonPlans() async {
     return _lessonRepository.getAll();
   }
@@ -55,20 +123,49 @@ class DataService extends ChangeNotifier {
   Future<LessonPlan?> getLessonPlanById(String lessonId) async {
     final cachedPlans = _cachedPlans;
     if (cachedPlans != null) {
-      if (!cachedPlans.any((plan) => plan.id == lessonId)) return null;
-      // Catalog data may be legacy-shaped. Fetching a specific lesson goes
-      // through the repository so it can migrate that lesson on demand.
-      return _lessonRepository.getById(lessonId);
+      try {
+        final plan = cachedPlans.firstWhere((p) => p.id == lessonId);
+        if (plan.steps.isNotEmpty &&
+            !plan.steps.any((s) => s.id.startsWith('placeholder_'))) {
+          return plan;
+        }
+      } catch (_) {}
     }
 
-    final inFlightLoad = _plansLoadFuture;
-    if (inFlightLoad != null) {
-      final plans = await inFlightLoad;
-      if (!plans.any((plan) => plan.id == lessonId)) return null;
-      return _lessonRepository.getById(lessonId);
+    final fullPlan = await _lessonRepository.getById(lessonId);
+    if (fullPlan != null && _cachedPlans != null) {
+      final index = _cachedPlans!.indexWhere((p) => p.id == lessonId);
+      if (index != -1) {
+        _cachedPlans![index] = fullPlan;
+      }
     }
+    return fullPlan;
+  }
 
-    return _lessonRepository.getById(lessonId);
+  void unloadLesson(String? lessonId) {
+    if (lessonId == null || _cachedPlans == null) return;
+    final index = _cachedPlans!.indexWhere((p) => p.id == lessonId);
+    if (index != -1) {
+      final plan = _cachedPlans![index];
+      _cachedPlans![index] = LessonPlan(
+        id: plan.id,
+        title: plan.title,
+        category: plan.category,
+        categoryEmoji: plan.categoryEmoji,
+        emoji: plan.emoji,
+        steps: List.generate(
+          plan.steps.length,
+          (i) => LessonStepData(
+            id: 'placeholder_$i',
+            type: 'flashcard',
+          ),
+        ),
+        creatorId: plan.creatorId,
+        createdAt: plan.createdAt,
+        index: plan.index,
+      );
+    }
+    _wordsByCategoryCache.clear();
   }
 
   Future<void> updateLessonIndices(List<LessonPlan> plans) async {
@@ -77,27 +174,31 @@ class DataService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<List<WordEntry>> getWordsByCategory(
-    String category, {
-    bool forceRefresh = false,
-  }) async {
-    if (!forceRefresh && _wordsByCategoryCache.containsKey(category)) {
+  Future<List<WordEntry>> getWordsByCategory(String category) async {
+    if (_wordsByCategoryCache.containsKey(category)) {
       return _wordsByCategoryCache[category]!;
     }
     final revision = _plansRevision;
-    final plans = await getAllLessonPlans(forceRefresh: forceRefresh);
+    final plans = await getAllLessonPlans();
     if (revision != _plansRevision) {
       return getWordsByCategory(category);
     }
     final List<WordEntry> words = [];
     final Set<String> seenIds = {};
 
-    for (var plan in plans.where((p) => p.category == category)) {
-      for (var step in plan.steps) {
-        final word = step.toWordEntry();
-        if (word.thai.isNotEmpty && !seenIds.contains(word.stableId)) {
-          words.add(word);
-          seenIds.add(word.stableId);
+    final categoryPlans = plans.where((p) => p.category == category);
+    for (var plan in categoryPlans) {
+      LessonPlan? fullPlan = plan;
+      if (plan.steps.any((s) => s.id.startsWith('placeholder_'))) {
+        fullPlan = await getLessonPlanById(plan.id);
+      }
+      if (fullPlan != null) {
+        for (var step in fullPlan.steps) {
+          final word = step.toWordEntry();
+          if (word.thai.isNotEmpty && !seenIds.contains(word.stableId)) {
+            words.add(word);
+            seenIds.add(word.stableId);
+          }
         }
       }
     }

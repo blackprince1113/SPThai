@@ -15,8 +15,6 @@ class LessonStepData {
   String imageUrl;
   List<String> choices;
   List<ChatMessage>? conversation;
-  bool wasConverted = false;
-  final bool needsIdMigration;
 
   LessonStepData({
     String? id,
@@ -29,8 +27,6 @@ class LessonStepData {
     this.imageUrl = '',
     List<String>? choices,
     this.conversation,
-    this.wasConverted = false,
-    this.needsIdMigration = false,
   }) : id = (id == null || id.isEmpty) ? const Uuid().v4() : id,
        choices = choices ?? [];
 
@@ -53,12 +49,6 @@ class LessonStepData {
   factory LessonStepData.fromMap(Map<String, dynamic> map) {
     final rawType = (map['type'] ?? 'flashcard').toString();
     final type = QuestionType.normalizeStoredKey(rawType);
-    final legacyType = rawType.trim().toLowerCase();
-    final migrated =
-        legacyType == 'fill blank' ||
-        legacyType == 'fillblank' ||
-        legacyType == 'english meaning' ||
-        legacyType == 'englishmeaning';
 
     return LessonStepData(
       id: map['id']?.toString(),
@@ -73,8 +63,6 @@ class LessonStepData {
       conversation: (map['conversation'] as List?)
           ?.map((c) => ChatMessage.fromMap(Map<String, dynamic>.from(c)))
           .toList(),
-      wasConverted: migrated,
-      needsIdMigration: (map['id']?.toString() ?? '').isEmpty,
     );
   }
 

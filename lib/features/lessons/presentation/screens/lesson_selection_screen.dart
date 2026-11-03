@@ -200,10 +200,10 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
     super.dispose();
   }
 
-  void _refreshCategories({bool force = false}) {
+  void _refreshCategories() {
     if (!mounted) return;
     setState(() {
-      _plansFuture = dataService.getAllLessonPlans(forceRefresh: force);
+      _plansFuture = dataService.getAllLessonPlans();
     });
   }
 

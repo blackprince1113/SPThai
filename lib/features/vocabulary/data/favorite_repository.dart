@@ -93,33 +93,6 @@ class FavoriteRepository {
         .toList();
   }
 
-  Future<void> migrateLocalFavorites(String userId) async {
-    final localWords = await _readLocalFavorites();
-    if (localWords.isEmpty) return;
-
-    for (var start = 0; start < localWords.length; start += 450) {
-      final batch = _db.batch();
-      final end = (start + 450).clamp(0, localWords.length).toInt();
-      for (final word in localWords.sublist(start, end)) {
-        final ref = _db
-            .collection(_usersCollection)
-            .doc(userId)
-            .collection(_favoritesCollection)
-            .doc(word.stableId);
-        batch.set(ref, {
-          ...word.toMap(),
-          'id': word.stableId,
-          'addedAt': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-      }
-      await batch.commit();
-    }
-
-    _prefs ??= await SharedPreferences.getInstance();
-    await _prefs!.remove(_localFavoritesKey);
-    _favoriteIdsByUser.remove(userId);
-  }
-
   Future<List<WordEntry>> _readLocalFavorites() async {
     _prefs ??= await SharedPreferences.getInstance();
     final encoded = _prefs!.getStringList(_localFavoritesKey) ?? const [];
@@ -148,5 +121,31 @@ class FavoriteRepository {
       _localFavoritesKey,
       favorites.map((favorite) => jsonEncode(favorite.toMap())).toList(),
     );
+  }
+
+  Future<void> migrateLocalFavorites(String userId) async {
+    final localFavorites = await _readLocalFavorites();
+    if (localFavorites.isEmpty) return;
+
+    final batch = _db.batch();
+    final userFavoritesRef = _db
+        .collection(_usersCollection)
+        .doc(userId)
+        .collection(_favoritesCollection);
+
+    for (final word in localFavorites) {
+      final docRef = userFavoritesRef.doc(word.stableId);
+      batch.set(docRef, {
+        ...word.toMap(),
+        'id': word.stableId,
+        'addedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
+
+    await batch.commit();
+    _favoriteIdsByUser.remove(userId);
+
+    _prefs ??= await SharedPreferences.getInstance();
+    await _prefs!.remove(_localFavoritesKey);
   }
 }

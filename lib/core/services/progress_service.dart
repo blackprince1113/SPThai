@@ -52,12 +52,6 @@ class ProgressService extends ChangeNotifier {
 
   Future<void> _handleUserChange(User? user) async {
     if (user != null) {
-      await _migrateLocalProgressToFirestore(user.uid);
-      try {
-        await DataService.instance.migrateFavorites(user.uid);
-      } catch (error) {
-        debugPrint('Error migrating favorites: $error');
-      }
       await _loadProgressFromFirestore();
     } else if (AuthService.instance.currentUser == null) {
       _completedStepIndices.clear();
@@ -188,47 +182,6 @@ class ProgressService extends ChangeNotifier {
     }
   }
 
-  Future<void> _migrateLocalProgressToFirestore(String userId) async {
-    if (_completedStepIndices.isEmpty) return;
-
-    try {
-      final doc = await _db.collection(usersCollection).doc(userId).get();
-      Map<String, dynamic> mergedProgress = toMap();
-
-      if (doc.exists && doc.data() != null) {
-        final data = doc.data()!;
-        if (data['progress'] != null) {
-          final firestoreProg = Map<String, dynamic>.from(data['progress']);
-          firestoreProg.forEach((key, value) {
-            final list = (value as List).map((e) => e as int).toSet();
-            if (mergedProgress.containsKey(key)) {
-              final localList = (mergedProgress[key] as List)
-                  .map((e) => e as int)
-                  .toSet();
-              localList.addAll(list);
-              mergedProgress[key] = localList.toList();
-            } else {
-              mergedProgress[key] = list.toList();
-            }
-          });
-        }
-      }
-
-      await _db.collection(usersCollection).doc(userId).set({
-        'progress': mergedProgress,
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-
-      _triedLessonIds.clear();
-      if (_prefs != null) {
-        await _prefs!.remove(_triedLessonsKey);
-        await _prefs!.remove(_localProgressKey);
-      }
-    } catch (e) {
-      debugPrint("Error migrating progress: $e");
-    }
-  }
-
   int getCompleted(String lessonId) {
     final stepIds = _completedStepIds[lessonId];
     if (stepIds != null && stepIds.isNotEmpty) return stepIds.length;
@@ -314,34 +267,17 @@ class ProgressService extends ChangeNotifier {
 
       try {
         final userRef = _db.collection(usersCollection).doc(user.uid);
-        await _db.runTransaction((transaction) async {
-          final userSnapshot = await transaction.get(userRef);
-          final stored = userSnapshot.data()?['progress'];
-          final mergedLegacyProgress = stored is Map
-              ? Map<String, dynamic>.from(stored)
-              : <String, dynamic>{};
-          for (final lessonId in dirtyLessonIds) {
-            mergedLegacyProgress[lessonId] =
-                progressSnapshot[lessonId] ?? const <int>[];
-          }
-          for (final lessonId in deletedLessonIds) {
-            // An empty list acts as a tombstone for older clients while
-            // avoiding removal of the nested map field during merge writes.
-            mergedLegacyProgress[lessonId] = <int>[];
-          }
-          transaction.set(userRef, {
-            'progress': mergedLegacyProgress,
-            'lastLessonId': lessonIdSnapshot,
-            'lastScrollOffset': _lastScrollOffset,
-            'streakCount': streakSnapshot,
-            'lastActivityDate': activityDateSnapshot != null
-                ? Timestamp.fromDate(activityDateSnapshot)
-                : null,
-            'updatedAt': FieldValue.serverTimestamp(),
-          }, SetOptions(merge: true));
-        });
+        await userRef.set({
+          'lastLessonId': lessonIdSnapshot,
+          'lastScrollOffset': _lastScrollOffset,
+          'streakCount': streakSnapshot,
+          'lastActivityDate': activityDateSnapshot != null
+              ? Timestamp.fromDate(activityDateSnapshot)
+              : null,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
       } catch (e) {
-        debugPrint("Error saving legacy progress: $e");
+        debugPrint("Error saving user progress metadata: $e");
       }
     }
   }
@@ -352,11 +288,6 @@ class ProgressService extends ChangeNotifier {
 
     try {
       final doc = await _db.collection(usersCollection).doc(user.uid).get();
-      final data = doc.data() ?? const <String, dynamic>{};
-      final rawLegacyProgress = data['progress'];
-      final legacyProgress = rawLegacyProgress is Map
-          ? Map<String, dynamic>.from(rawLegacyProgress)
-          : <String, dynamic>{};
       Map<String, Map<String, dynamic>> storedProgress;
       try {
         storedProgress = await _progressRepository.getAll(user.uid);
@@ -364,105 +295,28 @@ class ProgressService extends ChangeNotifier {
         storedProgress = {};
         debugPrint("Could not read per-lesson progress: $e");
       }
-      final lessonIds = <String>{
-        ...legacyProgress.keys,
-        ...storedProgress.keys,
-      };
-      final lessonsWithLegacySteps = legacyProgress.entries
-          .where((entry) {
-            final indices = _parseIndices(entry.value);
-            final imported = _parseIndices(
-              storedProgress[entry.key]?['legacyImportedStepIndices'],
-            );
-            return indices.difference(imported).isNotEmpty;
-          })
-          .map((entry) => entry.key)
-          .toList();
-      final legacyPlans = await Future.wait(
-        lessonsWithLegacySteps.map(DataService.instance.getLessonPlanById),
-      );
-      final plansById = <String, LessonPlan>{
-        for (final plan in legacyPlans.whereType<LessonPlan>()) plan.id: plan,
-      };
-      final mergedIndices = <String, Set<int>>{};
+
       final mergedStepIds = <String, Set<String>>{};
       final mergedLastStepIds = <String, String>{};
-      final changedLessons = <String, Map<String, dynamic>>{};
 
-      for (final lessonId in lessonIds) {
-        final oldIndices = _parseIndices(legacyProgress[lessonId]);
-        final stored = storedProgress[lessonId] ?? const <String, dynamic>{};
-        final storedIndices = _parseIndices(stored['completedStepIndices']);
+      for (final entry in storedProgress.entries) {
+        final lessonId = entry.key;
+        final stored = entry.value;
         final storedStepIds = _parseStrings(stored['completedStepIds']);
-        final importedLegacyIndices = _parseIndices(
-          stored['legacyImportedStepIndices'],
-        );
-        final stepIds = {...storedStepIds};
-        final plan = plansById[lessonId];
-        if (plan != null) {
-          for (final index in {
-            ...oldIndices.difference(importedLegacyIndices),
-            ...storedIndices,
-          }) {
-            if (index >= 0 && index < plan.steps.length) {
-              stepIds.add(plan.steps[index].id);
-            }
-          }
-        }
-        final indices = <int>{};
-        if (plan == null) {
-          // Keep a count available if the lesson is temporarily unavailable.
-          indices.addAll(oldIndices);
-          indices.addAll(storedIndices);
-        } else {
-          for (var index = 0; index < plan.steps.length; index++) {
-            if (stepIds.contains(plan.steps[index].id)) indices.add(index);
-          }
-        }
-        var lastStepId = stored['lastStepId'] as String?;
-        if (lastStepId == null || !stepIds.contains(lastStepId)) {
-          if (plan != null && indices.isNotEmpty) {
-            lastStepId = plan.steps[indices.reduce((a, b) => a > b ? a : b)].id;
-          } else if (stepIds.isNotEmpty) {
-            lastStepId = stepIds.last;
-          }
-        }
-        mergedIndices[lessonId] = indices;
-        mergedStepIds[lessonId] = stepIds;
-        if (lastStepId != null) mergedLastStepIds[lessonId] = lastStepId;
+        final lastStepId = stored['lastStepId'] as String?;
 
-        final shouldImportLegacy = oldIndices.difference(importedLegacyIndices);
-        if (!storedProgress.containsKey(lessonId) ||
-            (stored['schemaVersion'] as num? ?? 0) < 3 ||
-            !importedLegacyIndices.containsAll(oldIndices) ||
-            !storedStepIds.containsAll(stepIds) ||
-            (shouldImportLegacy.isNotEmpty && plan != null)) {
-          changedLessons[lessonId] = {
-            'completedStepIds': stepIds.toList(),
-            'lastStepId': lastStepId,
-            'legacyImportedStepIndices': oldIndices.toList()..sort(),
-            'updatedAt': FieldValue.serverTimestamp(),
-            'schemaVersion': 3,
-          };
+        mergedStepIds[lessonId] = storedStepIds;
+        if (lastStepId != null) {
+          mergedLastStepIds[lessonId] = lastStepId;
         }
       }
 
-      _completedStepIndices
-        ..clear()
-        ..addAll(mergedIndices);
       _completedStepIds
         ..clear()
         ..addAll(mergedStepIds);
       _lastStepIds
         ..clear()
         ..addAll(mergedLastStepIds);
-      if (changedLessons.isNotEmpty) {
-        try {
-          await _progressRepository.saveLessons(user.uid, changedLessons);
-        } catch (e) {
-          debugPrint("Could not migrate legacy progress: $e");
-        }
-      }
 
       if (doc.exists) {
         final data = doc.data()!;

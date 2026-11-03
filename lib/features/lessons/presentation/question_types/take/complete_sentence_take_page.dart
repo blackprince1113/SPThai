@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/core/models/models.dart';
-import 'package:superthai/core/services/auth_service.dart';
-import 'package:superthai/core/services/lesson_migration_service.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:superthai/features/lessons/presentation/question_types/controllers/complete_sentence_controller.dart';
@@ -31,7 +29,6 @@ class CompleteSentenceTakePage extends StatefulWidget {
 
 class _CompleteSentenceTakePageState extends State<CompleteSentenceTakePage> {
   late final CompleteSentenceController _controller;
-  bool _isMigrating = false;
 
   @override
   void initState() {
@@ -45,40 +42,12 @@ class _CompleteSentenceTakePageState extends State<CompleteSentenceTakePage> {
     super.dispose();
   }
 
-  void _handleMarkAsMeaning() async {
-    if (widget.plan == null || widget.stepIndex == -1) return;
-
-    setState(() => _isMigrating = true);
-
-    try {
-      await LessonMigrationService.markAsMeaning(
-        widget.plan!,
-        widget.stepIndex,
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Migrated to Meaning type!")),
-        );
-        StepResultNotification(true).dispatch(context);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Migration failed: $e")));
-      }
-    } finally {
-      if (mounted) setState(() => _isMigrating = false);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, _) {
         final theme = Theme.of(context);
-        final isAdmin = AuthService.instance.isAdmin;
 
         Widget body = SingleChildScrollView(
           child: Padding(
@@ -159,24 +128,6 @@ class _CompleteSentenceTakePageState extends State<CompleteSentenceTakePage> {
                   )
                 else
                   _buildFeedbackArea(),
-
-                if (isAdmin && !_controller.checked) ...[
-                  const SizedBox(height: 16),
-                  TextButton.icon(
-                    onPressed: _isMigrating ? null : _handleMarkAsMeaning,
-                    icon: _isMigrating
-                        ? const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.auto_fix_high_rounded, size: 18),
-                    label: const Text("MARK AS MEANING"),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.orange.shade800,
-                    ),
-                  ),
-                ],
               ],
             ),
           ),

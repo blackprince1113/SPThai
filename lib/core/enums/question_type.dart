@@ -99,21 +99,12 @@ enum QuestionType {
   }
 
   static String normalizeStoredKey(String key) {
-    switch (key.trim().toLowerCase()) {
-      case 'fill blank':
-      case 'fillblank':
-        return QuestionType.completeSentence.typeKey;
-      case 'english meaning':
-      case 'englishmeaning':
-        return QuestionType.meaning.typeKey;
-      default:
-        for (final type in QuestionType.values) {
-          if (type.typeKey.toLowerCase() == key.trim().toLowerCase() ||
-              type.name.toLowerCase() == key.trim().toLowerCase()) {
-            return type.typeKey;
-          }
-        }
-        return key;
+    for (final type in QuestionType.values) {
+      if (type.typeKey.toLowerCase() == key.trim().toLowerCase() ||
+          type.name.toLowerCase() == key.trim().toLowerCase()) {
+        return type.typeKey;
+      }
     }
+    return key;
   }
 }

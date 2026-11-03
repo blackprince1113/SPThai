@@ -10,102 +10,117 @@ class FirestoreLessonRepository implements LessonRepository {
 
   final FirebaseFirestore _db;
 
-  CollectionReference<Map<String, dynamic>> get _legacyPlans =>
-      _db.collection('lesson_plans');
-
   CollectionReference<Map<String, dynamic>> get _plans =>
       _db.collection('lesson_plans_v2');
 
   @override
   Future<List<LessonPlan>> getAll() async {
-    // List pages still use the legacy collection so opening the catalog does
-    // not migrate every lesson. A specific lesson is migrated by getById.
-    final snapshot = await _legacyPlans.get();
-    final plans = await Future.wait(snapshot.docs.map(_parseAndRepairStepIds));
-    return plans..sort((a, b) => a.index.compareTo(b.index));
+    try {
+      // Light metadata query: ONLY reads main lesson documents (1 fast request!),
+      // without fetching subcollections for every single lesson in the database.
+      final snapshot = await _plans.get();
+      final plans = snapshot.docs.map(_parsePlanFromMetadata).toList();
+      return plans..sort((a, b) => a.index.compareTo(b.index));
+    } catch (_) {
+      return [];
+    }
   }
 
   @override
   Future<LessonPlan?> getById(String lessonId) async {
     try {
-      final newSnapshot = await _plans.doc(lessonId).get();
-      if (newSnapshot.exists) {
-        try {
-          return await _readV2Plan(newSnapshot);
-        } on FirebaseException {
-          // Fall back to the old source if new-schema reads are not allowed.
-        }
-      }
-    } on FirebaseException {
-      // Fall back to the public legacy collection until new rules are deployed.
-    }
-
-    return _migrateLegacyLesson(lessonId);
-  }
-
-  Future<LessonPlan?> _migrateLegacyLesson(String lessonId) async {
-    final legacySnapshot = await _legacyPlans.doc(lessonId).get();
-    if (!legacySnapshot.exists) return null;
-
-    final legacyPlan = await _parseAndRepairStepIds(legacySnapshot);
-    try {
-      await _writeV2Plan(legacyPlan);
-      return legacyPlan;
-    } on FirebaseException {
-      // Keep lessons usable if the new collection's rules are not deployed yet.
-      return legacyPlan;
+      final snapshot = await _plans.doc(lessonId).get();
+      if (!snapshot.exists) return null;
+      return await _readPlan(snapshot);
+    } catch (_) {
+      return null;
     }
   }
 
   @override
   Future<LessonPlan?> getByCategory(String category) async {
-    final snapshot = await _legacyPlans
-        .where('category', isEqualTo: category)
-        .limit(1)
-        .get();
-    if (snapshot.docs.isEmpty) return null;
-    return getById(snapshot.docs.first.id);
-  }
-
-  Future<LessonPlan> _parseAndRepairStepIds(
-    DocumentSnapshot<Map<String, dynamic>> snapshot,
-  ) async {
-    final plan = LessonPlan.fromMap(snapshot.data()!);
-    if (!plan.steps.any((step) => step.needsIdMigration)) return plan;
-
     try {
-      return await _db.runTransaction((transaction) async {
-        final currentSnapshot = await transaction.get(snapshot.reference);
-        final currentData = currentSnapshot.data();
-        if (currentData == null) return plan;
-        final currentPlan = LessonPlan.fromMap(currentData);
-        if (currentPlan.steps.any((step) => step.needsIdMigration)) {
-          transaction.update(snapshot.reference, {
-            'steps': currentPlan.steps.map((step) => step.toMap()).toList(),
-          });
-        }
-        return currentPlan;
-      });
-    } on FirebaseException {
-      // Public lesson reads must still work when legacy IDs cannot be repaired.
-      return plan;
+      final snapshot = await _plans
+          .where('category', isEqualTo: category)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) return null;
+      return await _readPlan(snapshot.docs.first);
+    } catch (_) {
+      return null;
     }
   }
 
-  Future<LessonPlan> _readV2Plan(
+  Future<LessonPlan> _readPlan(
     DocumentSnapshot<Map<String, dynamic>> metadataSnapshot,
   ) async {
-    final metadata = metadataSnapshot.data()!;
-    final stepSnapshot = await metadataSnapshot.reference
-        .collection('steps')
-        .orderBy('position')
-        .get();
-    final steps = stepSnapshot.docs
-        .map((doc) => LessonStepData.fromMap(doc.data()))
-        .toList();
+    final metadata = metadataSnapshot.data();
+    if (metadata == null) {
+      return _parsePlanFromMetadata(metadataSnapshot);
+    }
+
+    List<LessonStepData> steps = [];
+    try {
+      final stepSnapshot = await metadataSnapshot.reference
+          .collection('steps')
+          .get();
+      if (stepSnapshot.docs.isNotEmpty) {
+        final sortedDocs = stepSnapshot.docs.toList()
+          ..sort((a, b) {
+            final posA = (a.data()['position'] as num?)?.toInt() ?? 0;
+            final posB = (b.data()['position'] as num?)?.toInt() ?? 0;
+            return posA.compareTo(posB);
+          });
+        steps = sortedDocs
+            .map((doc) => LessonStepData.fromMap(doc.data()))
+            .toList();
+      }
+    } catch (_) {}
+
+    // Fallback: if subcollection 'steps' is empty, check if steps are array in metadata
+    if (steps.isEmpty && metadata['steps'] is List) {
+      steps = (metadata['steps'] as List)
+          .map((s) => LessonStepData.fromMap(Map<String, dynamic>.from(s)))
+          .toList();
+    }
 
     return LessonPlan(
       id: metadata['id'] as String? ?? metadataSnapshot.id,
+      title: metadata['title'] as String? ?? '',
+      category: metadata['category'] as String? ?? '',
+      categoryEmoji: metadata['categoryEmoji'] as String? ?? '📚',
+      emoji: metadata['emoji'] as String? ?? '📝',
+      steps: steps,
+      creatorId: metadata['creatorId'] as String?,
+      createdAt: _parseDate(metadata['createdAt']),
+      index: (metadata['index'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  LessonPlan _parsePlanFromMetadata(
+    DocumentSnapshot<Map<String, dynamic>> doc,
+  ) {
+    final metadata = doc.data() ?? {};
+    final stepCount = (metadata['stepCount'] as num?)?.toInt() ?? 0;
+
+    List<LessonStepData> steps = [];
+    if (metadata['steps'] is List) {
+      steps = (metadata['steps'] as List)
+          .map((s) => LessonStepData.fromMap(Map<String, dynamic>.from(s)))
+          .toList();
+    } else if (stepCount > 0) {
+      // Dummy step list of length stepCount so plan.steps.length returns correct step count
+      steps = List.generate(
+        stepCount,
+        (i) => LessonStepData(
+          id: 'placeholder_$i',
+          type: 'flashcard',
+        ),
+      );
+    }
+
+    return LessonPlan(
+      id: metadata['id'] as String? ?? doc.id,
       title: metadata['title'] as String? ?? '',
       category: metadata['category'] as String? ?? '',
       categoryEmoji: metadata['categoryEmoji'] as String? ?? '📚',
@@ -137,7 +152,7 @@ class FirestoreLessonRepository implements LessonRepository {
     'updatedAt': FieldValue.serverTimestamp(),
   };
 
-  Future<void> _writeV2Plan(LessonPlan plan) async {
+  Future<void> _writePlan(LessonPlan plan) async {
     final metadataRef = _plans.doc(plan.id);
     final stepsRef = metadataRef.collection('steps');
     final existingSteps = await stepsRef.get();
@@ -146,8 +161,6 @@ class FirestoreLessonRepository implements LessonRepository {
         .where((doc) => !retainedIds.contains(doc.id))
         .toList();
 
-    // Publish the metadata marker last. Readers then never treat a partially
-    // copied collection as a complete migrated lesson.
     await metadataRef.delete();
 
     final operations = <void Function(WriteBatch)>[];
@@ -179,7 +192,7 @@ class FirestoreLessonRepository implements LessonRepository {
 
   @override
   Future<void> save(LessonPlan plan, {int? nextIndex}) async {
-    final docRef = _legacyPlans.doc(plan.id);
+    final docRef = _plans.doc(plan.id);
     final doc = await docRef.get();
     var index = plan.index;
     var createdAt = plan.createdAt ?? DateTime.now();
@@ -194,14 +207,14 @@ class FirestoreLessonRepository implements LessonRepository {
     } else if (index == 0 && nextIndex != null) {
       index = nextIndex;
     } else if (index == 0) {
-      final lastPlan = await _legacyPlans
+      final lastPlan = await _plans
           .orderBy('index', descending: true)
           .limit(1)
           .get();
       if (lastPlan.docs.isNotEmpty) {
         index =
             ((lastPlan.docs.first.data()['index'] as num?)?.toInt() ?? 0) + 1;
-      } else if ((await _legacyPlans.limit(1).get()).docs.isNotEmpty) {
+      } else if ((await _plans.limit(1).get()).docs.isNotEmpty) {
         index = 1;
       }
     }
@@ -218,10 +231,7 @@ class FirestoreLessonRepository implements LessonRepository {
       index: index,
     );
 
-    // Keep the old document current for older app releases, then write the
-    // normalized representation used by this release.
-    await docRef.set(normalizedPlan.toMap(), SetOptions(merge: true));
-    await _writeV2Plan(normalizedPlan);
+    await _writePlan(normalizedPlan);
   }
 
   @override
@@ -237,27 +247,17 @@ class FirestoreLessonRepository implements LessonRepository {
       await batch.commit();
     }
     await metadataRef.delete();
-    await _legacyPlans.doc(lessonId).delete();
   }
 
   @override
   Future<void> updateIndices(List<LessonPlan> plans) async {
-    final v2Snapshots = await Future.wait(
-      plans.map((plan) => _plans.doc(plan.id).get()),
-    );
     final operations = <void Function(WriteBatch)>[];
     for (var index = 0; index < plans.length; index++) {
       final plan = plans[index];
       final lessonIndex = index;
       operations.add(
-        (batch) =>
-            batch.update(_legacyPlans.doc(plan.id), {'index': lessonIndex}),
+        (batch) => batch.update(_plans.doc(plan.id), {'index': lessonIndex}),
       );
-      if (v2Snapshots[index].exists) {
-        operations.add(
-          (batch) => batch.update(_plans.doc(plan.id), {'index': lessonIndex}),
-        );
-      }
     }
     for (var start = 0; start < operations.length; start += _batchLimit) {
       final batch = _db.batch();

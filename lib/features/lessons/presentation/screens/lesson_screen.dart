@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:superthai/core/services/audio_service.dart';
+import 'package:superthai/core/services/sound_service.dart';
 import 'package:superthai/core/viewmodels/lesson_view_model.dart';
 import 'package:superthai/features/lessons/presentation/question_types/take/listening_take_page.dart';
 import 'package:superthai/features/lessons/presentation/question_types/take/listening_choice_take_page.dart';
@@ -57,6 +59,8 @@ class _LessonScreenState extends State<LessonScreen> {
 
   @override
   void dispose() {
+    AudioService.instance.stop();
+    SoundService.instance.stop();
     _viewModel.removeListener(_onViewModelUpdate);
     _viewModel.dispose();
     _pageController.dispose();

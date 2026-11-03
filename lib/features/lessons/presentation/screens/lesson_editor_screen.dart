@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:superthai/core/enums/question_type.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/auth_service.dart';
+import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/features/lessons/presentation/question_types/create/complete_sentence_create_page.dart';
 import 'package:superthai/features/lessons/presentation/question_types/create/conversation_create_page.dart';
 import 'package:superthai/features/lessons/presentation/question_types/create/flashcard_create_page.dart';
@@ -71,6 +72,8 @@ class _CreateScreenState extends State<CreateScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _lessonSteps.clear();
+    DataService.instance.unloadLesson(_existingId);
     super.dispose();
   }
 

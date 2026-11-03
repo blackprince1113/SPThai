@@ -28,6 +28,14 @@ class SoundService {
     }
   }
 
+  Future<void> stop() async {
+    try {
+      await _player.stop();
+    } catch (e) {
+      debugPrint("Error stopping sound: $e");
+    }
+  }
+
   void dispose() {
     _player.dispose();
   }

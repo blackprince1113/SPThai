@@ -31,7 +31,7 @@ class _ManageLessonsScreenState extends State<ManageLessonsScreen> {
 
   Future<void> _loadPlans() async {
     try {
-      final plans = await dataService.getAllLessonPlans(forceRefresh: true);
+      final plans = await dataService.getAllLessonPlans();
       if (!mounted) return;
       setState(() {
         _allPlans = plans;

@@ -18,7 +18,6 @@ class ProgressRepository {
     String lessonId, {
     required Iterable<String> completedStepIds,
     required String? lastStepId,
-    Iterable<int>? legacyImportedStepIndices,
   }) {
     return _progress(userId)
         .doc(lessonId)
@@ -26,7 +25,6 @@ class ProgressRepository {
           _progressData(
             completedStepIds,
             lastStepId,
-            legacyImportedStepIndices,
           ),
           SetOptions(merge: true),
         );
@@ -54,14 +52,10 @@ class ProgressRepository {
   Map<String, dynamic> _progressData(
     Iterable<String> completedStepIds,
     String? lastStepId,
-    Iterable<int>? legacyImportedStepIndices,
   ) {
     return {
       'completedStepIds': completedStepIds.toSet().toList(),
       'lastStepId': lastStepId,
-      // Kept only as an import marker so old index based records are imported once.
-      'legacyImportedStepIndices':
-          (legacyImportedStepIndices ?? const <int>[]).toSet().toList()..sort(),
       'updatedAt': FieldValue.serverTimestamp(),
       'schemaVersion': 3,
     };

@@ -45,7 +45,6 @@ class LessonViewModel extends ChangeNotifier {
   bool _isLoading = true;
   int _sessionCorrectCount = 0;
   final List<LessonStep> _failedSteps = [];
-  bool _hasAutoMigrated = false;
 
   List<LessonStep> get steps => _steps;
   int get currentIndex => _currentIndex;
@@ -156,13 +155,6 @@ class LessonViewModel extends ChangeNotifier {
     if (_currentIndex < _steps.length) {
       final currentStep = _steps[_currentIndex];
 
-      if (!_hasAutoMigrated &&
-          _currentPlan != null &&
-          (currentStep.rawData?.wasConverted ?? false)) {
-        _hasAutoMigrated = true;
-        DataService.instance.addLessonPlan(_currentPlan!);
-      }
-
       if (wasCorrect) {
         _sessionCorrectCount++;
         final idToSave = lessonId ?? _resolvedId;
@@ -204,5 +196,14 @@ class LessonViewModel extends ChangeNotifier {
     _currentIndex = 0;
     _sessionCorrectCount = 0;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _steps.clear();
+    _failedSteps.clear();
+    _currentPlan = null;
+    DataService.instance.unloadLesson(lessonId ?? _resolvedId);
+    super.dispose();
   }
 }

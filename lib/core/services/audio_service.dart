@@ -28,4 +28,10 @@ class AudioService {
     _queue = operation.catchError((_) {});
     return operation;
   }
+
+  Future<void> stop() async {
+    try {
+      await tts.stop();
+    } catch (_) {}
+  }
 }
