@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:superthai/core/models/models.dart';
 import 'auth_service.dart';
 import 'data_service.dart';
 import 'package:superthai/features/progress/data/progress_repository.dart';
@@ -232,9 +231,6 @@ class ProgressService extends ChangeNotifier {
       _progressWriteRequested = false;
       final user = AuthService.instance.currentUser;
       if (user == null) return;
-      final progressSnapshot = toMap().map(
-        (lessonId, indices) => MapEntry(lessonId, List<int>.of(indices)),
-      );
       final stepIdSnapshot = _completedStepIds.map(
         (lessonId, ids) => MapEntry(lessonId, List<String>.of(ids)),
       );
@@ -333,11 +329,6 @@ class ProgressService extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error loading progress: $e");
     }
-  }
-
-  Set<int> _parseIndices(Object? value) {
-    if (value is! Iterable) return {};
-    return value.whereType<num>().map((index) => index.toInt()).toSet();
   }
 
   Set<String> _parseStrings(Object? value) {
