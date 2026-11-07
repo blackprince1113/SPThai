@@ -86,24 +86,57 @@ enum QuestionType {
     required this.icon,
   });
 
-  static QuestionType fromString(String? key) {
-    if (key == null || key.isEmpty) return QuestionType.flashcard;
-    final normalized = normalizeStoredKey(key).trim().toLowerCase();
+  static QuestionType? tryFromString(String? key) {
+    if (key == null || key.trim().isEmpty) return null;
+
+    final trimmed = key.trim();
+    final normalized =
+        trimmed.toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+
     for (final type in QuestionType.values) {
-      if (type.typeKey.toLowerCase() == normalized ||
-          type.name.toLowerCase() == normalized) {
+      final typeKeyNorm =
+          type.typeKey.toLowerCase().replaceAll('_', '').replaceAll(' ', '');
+      final nameNorm = type.name.toLowerCase();
+      if (normalized == typeKeyNorm || normalized == nameNorm) {
         return type;
       }
     }
-    return QuestionType.flashcard;
+
+    switch (normalized) {
+      case 'multiplechoice':
+      case 'fourchoice':
+        return QuestionType.fourChoice;
+      case 'completesentense':
+      case 'fillblank':
+      case 'completesentence':
+        return QuestionType.completeSentence;
+      case 'englishmeaning':
+        return QuestionType.meaning;
+      case 'info':
+      case 'culturenote':
+      case 'infonote':
+        return QuestionType.infoNote;
+      case 'vowelfill':
+        return QuestionType.vowelFill;
+      case 'listeningchoice':
+        return QuestionType.listeningChoice;
+      case 'sentenceorder':
+        return QuestionType.sentenceOrder;
+      case 'sentenceexample':
+        return QuestionType.sentenceExample;
+      default:
+        return null;
+    }
+  }
+
+  static QuestionType fromString(String? key) {
+    return tryFromString(key) ?? QuestionType.flashcard;
   }
 
   static String normalizeStoredKey(String key) {
-    for (final type in QuestionType.values) {
-      if (type.typeKey.toLowerCase() == key.trim().toLowerCase() ||
-          type.name.toLowerCase() == key.trim().toLowerCase()) {
-        return type.typeKey;
-      }
+    final type = tryFromString(key);
+    if (type != null) {
+      return type.typeKey;
     }
     return key;
   }

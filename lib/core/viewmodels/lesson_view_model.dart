@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:superthai/core/enums/question_type.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/core/services/progress_service.dart';
@@ -101,52 +102,33 @@ class LessonViewModel extends ChangeNotifier {
   }
 
   LessonType _mapType(String type) {
-    switch (type) {
-      case "Flashcard":
-      case "flashcard":
+    final qType = QuestionType.tryFromString(type);
+    switch (qType) {
+      case QuestionType.flashcard:
         return LessonType.flashcard;
-      case "Four Choice":
-      case "multipleChoice":
+      case QuestionType.fourChoice:
         return LessonType.multipleChoice;
-      case "Listening":
-      case "listening":
+      case QuestionType.listening:
         return LessonType.listening;
-      case "Speaking":
-      case "speaking":
+      case QuestionType.speaking:
         return LessonType.speaking;
-      case "Complete Sentence":
-      case "completeSentence":
-      case "Complete Sentense":
-      case "completeSentense":
-      case "Fill Blank":
-      case "fillBlank":
+      case QuestionType.completeSentence:
         return LessonType.completeSentence;
-      case "Meaning":
-      case "meaning":
-      case "English Meaning":
-      case "englishMeaning":
+      case QuestionType.meaning:
         return LessonType.meaning;
-      case "Sentence Order":
-      case "sentenceOrder":
+      case QuestionType.sentenceOrder:
         return LessonType.sentenceOrder;
-      case "Vowel Fill":
-      case "vowelFill":
+      case QuestionType.vowelFill:
         return LessonType.vowelFill;
-      case "Listening Choice":
-      case "listeningChoice":
+      case QuestionType.listeningChoice:
         return LessonType.listeningChoice;
-      case "Info":
-      case "info":
-      case "Info Note":
-      case "Culture Note":
+      case QuestionType.infoNote:
         return LessonType.info;
-      case "Conversation":
-      case "conversation":
+      case QuestionType.conversation:
         return LessonType.conversation;
-      case "Sentence Example":
-      case "sentenceExample":
+      case QuestionType.sentenceExample:
         return LessonType.sentenceExample;
-      default:
+      case null:
         return LessonType.flashcard;
     }
   }
