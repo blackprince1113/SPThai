@@ -8,8 +8,7 @@ import 'package:superthai/ui/widgets/shared_widgets.dart';
 
 import 'package:superthai/ui/screens/login_screen.dart';
 import 'package:superthai/ui/screens/edit_profile_screen.dart';
-import 'package:superthai/features/lessons/presentation/screens/manage_lessons_screen.dart';
-import 'package:superthai/ui/screens/add_admin_screen.dart';
+import 'package:superthai/ui/screens/manage_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -46,27 +45,14 @@ class SettingsScreen extends StatelessWidget {
                     _buildSectionTitle(context, "Admin Management"),
                     ThaiSettingsGroup(children: [
                       ThaiSettingsTile(
-                        icon: Icons.reorder_rounded,
-                        title: "Manage Lesson Order",
-                        color: Colors.orange,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ManageLessonsScreen(),
-                            ),
-                          );
-                        },
-                      ),
-                      ThaiSettingsTile(
                         icon: Icons.admin_panel_settings_rounded,
-                        title: "Add New Admin",
+                        title: "Manage",
                         color: Colors.deepPurple,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => const AddAdminScreen(),
+                              builder: (_) => const ManageScreen(),
                             ),
                           );
                         },
@@ -111,7 +97,7 @@ class SettingsScreen extends StatelessWidget {
                     Consumer<ThemeService>(
                       builder: (context, theme, _) {
                         return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10.2),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -224,6 +210,8 @@ class SettingsScreen extends StatelessWidget {
       },
     );
   }
+
+
 
   Widget _buildProfileHeader(
     BuildContext context,
@@ -342,7 +330,7 @@ class SettingsScreen extends StatelessWidget {
         style: TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.bold,
-          color: Theme.of(context).primaryColor,
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );

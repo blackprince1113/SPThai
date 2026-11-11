@@ -330,42 +330,6 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
                   );
                 },
               ),
-              Consumer<AuthService>(
-                builder: (context, auth, _) {
-                  if (!auth.isAdmin) return const SizedBox.shrink();
-                  return Positioned(
-                    top: 16,
-                    right: 20,
-                    child: Tooltip(
-                      message: "Create Lesson",
-                      child: Material(
-                        elevation: 4,
-                        shape: const CircleBorder(),
-                        color: AppTheme.primaryColor,
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const CreateScreen(),
-                              ),
-                            ).then((_) => _refreshCategories());
-                          },
-                          child: const Padding(
-                            padding: EdgeInsets.all(12.0),
-                            child: Icon(
-                              Icons.add_rounded,
-                              color: Colors.white,
-                              size: 26,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
             ],
           ),
         );

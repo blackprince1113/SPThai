@@ -1084,7 +1084,7 @@ class ThaiSettingsTile extends StatelessWidget {
       onTap: isSwitch ? null : (onTap ?? () {}),
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10.2),
         child: Row(
           children: [
             Container(
@@ -1137,13 +1137,19 @@ class ThaiSettingsTile extends StatelessWidget {
 
 class ThaiSettingsGroup extends StatelessWidget {
   final List<Widget> children;
+  final bool showDivider;
 
-  const ThaiSettingsGroup({super.key, required this.children});
+  const ThaiSettingsGroup({
+    super.key,
+    required this.children,
+    this.showDivider = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10.2),
       decoration: BoxDecoration(
         color: theme.cardTheme.color ?? Colors.white,
         borderRadius: BorderRadius.circular(24),
@@ -1164,7 +1170,7 @@ class ThaiSettingsGroup extends StatelessWidget {
           return Column(
             children: [
               tile,
-              if (!isLast)
+              if (!isLast && showDivider)
                 Divider(
                   height: 1,
                   indent: 60,
