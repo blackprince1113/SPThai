@@ -21,6 +21,8 @@ class DataService extends ChangeNotifier {
   int _plansRevision = 0;
   DateTime? _lastBackgroundSyncAt;
   final Map<String, List<WordEntry>> _wordsByCategoryCache = {};
+  final ValueNotifier<FavoriteChange?> favoriteChanges =
+      ValueNotifier<FavoriteChange?>(null);
   List<QueryDocumentSnapshot<Map<String, dynamic>>>? _discoverFallbackDocs;
   bool _discoverCompositeIndexUnavailable = false;
 
@@ -273,8 +275,14 @@ class DataService extends ChangeNotifier {
   }
 
   Future<void> toggleFavorite(WordEntry word) async {
+    final wasFavorite = await FavoriteRepository.instance.isFavorite(
+      word.stableId,
+    );
     await FavoriteRepository.instance.toggleFavorite(word);
-    notifyListeners();
+    favoriteChanges.value = FavoriteChange(
+      word: word,
+      isFavorite: !wasFavorite,
+    );
   }
 
   Future<bool> isFavorite(String wordId) async {
@@ -375,6 +383,13 @@ class DataService extends ChangeNotifier {
     if (value is String) return DateTime.tryParse(value) ?? DateTime(1970);
     return DateTime(1970);
   }
+}
+
+class FavoriteChange {
+  const FavoriteChange({required this.word, required this.isFavorite});
+
+  final WordEntry word;
+  final bool isFavorite;
 }
 
 class DiscoverPage {

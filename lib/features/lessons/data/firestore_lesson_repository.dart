@@ -16,8 +16,10 @@ class FirestoreLessonRepository implements LessonRepository {
   @override
   Future<List<LessonPlan>> getAll() async {
     try {
-      // Light metadata query: ONLY reads main lesson documents (1 fast request!),
-      // without fetching subcollections for every single lesson in the database.
+      // The lesson map and admin ordering screen both need the complete list
+      // to build category groups and preserve drag ordering. Fetch metadata in
+      // one query; lesson steps remain in their subcollections and are loaded
+      // only when a lesson is opened.
       final snapshot = await _plans.get();
       final plans = snapshot.docs.map(_parsePlanFromMetadata).toList();
       return plans..sort((a, b) => a.index.compareTo(b.index));

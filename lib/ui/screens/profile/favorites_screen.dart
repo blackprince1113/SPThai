@@ -46,11 +46,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     super.initState();
     _loadInitialData();
     dataService.addListener(_handleDataChanged);
+    dataService.favoriteChanges.addListener(_handleFavoriteChanged);
   }
 
   @override
   void dispose() {
     dataService.removeListener(_handleDataChanged);
+    dataService.favoriteChanges.removeListener(_handleFavoriteChanged);
     _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
@@ -79,23 +81,39 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Future<void> _handleDataChanged() async {
     try {
-      final results = await Future.wait([
-        dataService.getAllLessonPlans(),
-        dataService.getFavoriteWords(),
-      ]);
+      final plans = await dataService.getAllLessonPlans();
       if (!mounted) return;
 
       setState(() {
-        _allPlans = results[0] as List<LessonPlan>;
+        _allPlans = plans;
         _plansByCategory = _groupPlansByCategory(_allPlans);
-        _favoriteWords = results[1] as List<WordEntry>;
-        _favoriteIds = _favoriteWords.map((word) => word.stableId).toSet();
         _rebuildSearchIndex();
       });
       _refreshWords();
     } catch (e) {
-      debugPrint("Error refreshing favorite IDs: $e");
+      debugPrint("Error refreshing lesson plans: $e");
     }
+  }
+
+  void _handleFavoriteChanged() {
+    final change = dataService.favoriteChanges.value;
+    if (change == null || !mounted) return;
+
+    setState(() {
+      final wordId = change.word.stableId;
+      if (change.isFavorite) {
+        _favoriteIds.add(wordId);
+        if (!_favoriteWords.any((word) => word.stableId == wordId)) {
+          _favoriteWords = [..._favoriteWords, change.word];
+        }
+      } else {
+        _favoriteIds.remove(wordId);
+        _favoriteWords = _favoriteWords
+            .where((word) => word.stableId != wordId)
+            .toList(growable: false);
+      }
+    });
+    _refreshWords();
   }
 
   void _refreshWords() {
@@ -195,18 +213,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 
   Future<void> _toggleFavorite(WordEntry word) async {
-    final wordId = word.stableId;
-    setState(() {
-      if (_favoriteIds.contains(wordId)) {
-        _favoriteIds.remove(wordId);
-      } else {
-        _favoriteIds.add(wordId);
-      }
-    });
     await dataService.toggleFavorite(word);
-    if (_selectedCategory == 'Favorites') {
-      _refreshWords();
-    }
   }
 
   @override

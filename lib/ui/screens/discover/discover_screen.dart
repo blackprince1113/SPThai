@@ -237,6 +237,11 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Widget _buildDiscoverCard(DiscoverItem item, bool isAdmin) {
     final theme = Theme.of(context);
+    // The image is displayed at 120 logical pixels; decode it near the
+    // physical size required by this device instead of keeping a full-size
+    // source image in the image cache.
+    final imageCacheSize = (120 * MediaQuery.devicePixelRatioOf(context))
+        .round();
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
@@ -274,6 +279,8 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                             ? CachedNetworkImage(
                                 imageUrl: item.imageUrl!,
                                 fit: BoxFit.cover,
+                                alignment: Alignment.center,
+                                memCacheWidth: imageCacheSize,
                                 placeholder: (context, url) => const Center(
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,

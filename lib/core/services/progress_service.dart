@@ -300,14 +300,16 @@ class ProgressService extends ChangeNotifier {
     if (user == null) return;
 
     try {
-      final doc = await _db.collection(usersCollection).doc(user.uid).get();
-      Map<String, Map<String, dynamic>> storedProgress;
-      try {
-        storedProgress = await _progressRepository.getAll(user.uid);
-      } catch (e) {
-        storedProgress = {};
-        debugPrint("Could not read per-lesson progress: $e");
-      }
+      final results = await Future.wait<Object>([
+        _db.collection(usersCollection).doc(user.uid).get(),
+        _progressRepository.getAll(user.uid).catchError((Object e) {
+          debugPrint("Could not read per-lesson progress: $e");
+          return <String, Map<String, dynamic>>{};
+        }),
+      ]);
+      final doc = results[0] as DocumentSnapshot<Map<String, dynamic>>;
+      final storedProgress =
+          results[1] as Map<String, Map<String, dynamic>>;
 
       final mergedStepIds = <String, Set<String>>{};
       final mergedLastStepIds = <String, String>{};

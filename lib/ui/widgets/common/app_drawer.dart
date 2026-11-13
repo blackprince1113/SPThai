@@ -26,6 +26,7 @@ class _AppDrawerState extends State<AppDrawer> {
   final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
   late Future<List<LessonPlan>> _plansFuture;
+  late Future<PackageInfo> _packageInfoFuture;
   Timer? _searchDebounce;
   List<LessonPlan>? _loadedPlans;
   Map<String, List<LessonPlan>> _categoryMap = const {};
@@ -37,6 +38,7 @@ class _AppDrawerState extends State<AppDrawer> {
   void initState() {
     super.initState();
     _plansFuture = dataService.getAllLessonPlans();
+    _packageInfoFuture = PackageInfo.fromPlatform();
   }
 
   @override
@@ -381,7 +383,7 @@ class _AppDrawerState extends State<AppDrawer> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Center(
               child: FutureBuilder<PackageInfo>(
-                future: PackageInfo.fromPlatform(),
+                future: _packageInfoFuture,
                 builder: (context, snapshot) {
                   final version = snapshot.data?.version ?? '1.2.8';
                   return Text(

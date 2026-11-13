@@ -626,6 +626,22 @@ class _LessonMapState extends State<_LessonMap> {
     return false;
   }
 
+  List<Offset> _connectorEdgePoints(
+    double startX,
+    double startY,
+    double endX,
+    double endY,
+  ) {
+    const iconHalfSize = 40.0;
+    final direction = Offset(endX - startX, endY - startY);
+    final inset = iconHalfSize / direction.distance;
+
+    return [
+      Offset(startX + direction.dx * inset, startY + direction.dy * inset),
+      Offset(endX - direction.dx * inset, endY - direction.dy * inset),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final Map<String, List<LessonPlan>> plansByCategory = {};
@@ -641,233 +657,167 @@ class _LessonMapState extends State<_LessonMap> {
     }
     final theme = Theme.of(context);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return NotificationListener<ScrollNotification>(
-          onNotification: _handleScrollNotification,
-          child: SingleChildScrollView(
-            controller: widget.scrollController,
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: constraints.maxHeight),
-              child: Container(
-                color: Colors.transparent,
-                padding: const EdgeInsets.only(
-                  top: 28,
-                  bottom: 120,
-                  left: 36,
-                  right: 36,
+    return NotificationListener<ScrollNotification>(
+      onNotification: _handleScrollNotification,
+      child: CustomScrollView(
+        controller: widget.scrollController,
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
+        ),
+        slivers: categoryNames.isEmpty
+            ? [
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(
+                    child: ThaiEmptyState(
+                      icon: Icons.folder_open_rounded,
+                      title: "No lessons available yet!",
+                      subtitle: "Please check back later for new content.",
+                    ),
+                  ),
                 ),
-                child: categoryNames.isEmpty
-                    ? const Center(
-                        child: ThaiEmptyState(
-                          icon: Icons.folder_open_rounded,
-                          title: "No lessons available yet!",
-                          subtitle: "Please check back later for new content.",
-                        ),
-                      )
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(categoryNames.length, (
-                          categoryIndex,
-                        ) {
-                          final categoryName = categoryNames[categoryIndex];
-                          final categoryPlans = plansByCategory[categoryName]!;
-
-                          return Consumer<ProgressService>(
-                            builder: (context, progress, _) {
-                              return LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final double width = constraints.maxWidth;
-                                  const List<double> alignments = [
-                                    0.0,
-                                    -0.5,
-                                    0.0,
-                                    0.5,
-                                  ];
-                                  const double nodeWidth = 80.0;
-                                  const double rowHeight = 120.0;
-                                  final List<Offset> points = [];
-
-                                  for (
-                                    int i = 0;
-                                    i < categoryPlans.length;
-                                    i++
-                                  ) {
-                                    final align =
-                                        alignments[i % alignments.length];
-                                    final double x =
-                                        (width / 2) +
-                                        (align * (width - nodeWidth) / 2);
-                                    final double y =
-                                        (i * rowHeight) + (rowHeight / 2);
-                                    points.add(Offset(x, y));
-                                  }
-
-                                  return Column(
-                                    children: [
-                                      const SizedBox(height: 12),
-                                      SizedBox(
-                                        height: categoryPlans.length * 120.0,
-                                        child: Stack(
-                                          clipBehavior: Clip.none,
-                                          children: [
-                                            ...List.generate(categoryPlans.length, (
-                                              index,
-                                            ) {
-                                              if (index % 2 == 0) {
-                                                return const SizedBox.shrink();
-                                              }
-
-                                              final consonantIndex =
-                                                  categoryConsonantStarts[categoryIndex] +
-                                                  (index ~/ 2);
-
-                                              final char =
-                                                  _thaiConsonants[consonantIndex %
-                                                      _thaiConsonants.length];
-                                              final nodeAlign =
-                                                  alignments[index %
-                                                      alignments.length];
-                                              final charAlign = nodeAlign < 0
-                                                  ? 0.8
-                                                  : -0.8;
-
-                                              return Positioned(
-                                                top: (index * rowHeight) - 20,
-                                                left: 0,
-                                                right: 0,
-                                                child: IgnorePointer(
-                                                  child: Align(
-                                                    alignment: Alignment(
-                                                      charAlign,
-                                                      0,
-                                                    ),
-                                                    child: Text(
-                                                      char,
-                                                      style: TextStyle(
-                                                        fontSize: 110,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: theme
-                                                            .textTheme
-                                                            .bodyLarge
-                                                            ?.color
-                                                            ?.withValues(
-                                                              alpha: 0.08,
-                                                            ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }),
-                                            SizedBox(
-                                              width: width,
-                                              child: RepaintBoundary(
-                                                child: IgnorePointer(
-                                                  child: CustomPaint(
-                                                    size: Size(
-                                                      width,
-                                                      categoryPlans.length *
-                                                          rowHeight,
-                                                    ),
-                                                    painter: MapPathPainter(
-                                                      points: points,
-                                                      color: Colors.blueGrey
-                                                          .withValues(
-                                                            alpha: 0.15,
-                                                          ),
-                                                    ),
-                                                  ),
-                                                ),
+              ]
+            : [
+                for (
+                  var categoryIndex = 0;
+                  categoryIndex < categoryNames.length;
+                  categoryIndex++
+                ) ...[
+                  SliverPadding(
+                    padding: EdgeInsets.only(
+                      left: 36,
+                      right: 36,
+                      top: categoryIndex == 0 ? 28 : 12,
+                    ),
+                    sliver: SliverList.builder(
+                      itemCount:
+                          plansByCategory[categoryNames[categoryIndex]]!.length,
+                      itemBuilder: (context, index) {
+                        const alignments = [0.0, -0.5, 0.0, 0.5];
+                        const rowHeight = 120.0;
+                        final categoryPlans =
+                            plansByCategory[categoryNames[categoryIndex]]!;
+                        final plan = categoryPlans[index];
+                        final align = alignments[index % alignments.length];
+                        final previousAlign = index == 0
+                            ? null
+                            : alignments[(index - 1) % alignments.length];
+                        final consonantIndex =
+                            categoryConsonantStarts[categoryIndex] + index ~/ 2;
+                        return Consumer<ProgressService>(
+                          builder: (context, progress, _) => SizedBox(
+                            height: rowHeight,
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                final width = constraints.maxWidth;
+                                double xFor(double value) =>
+                                    width / 2 + value * (width - 80) / 2;
+                                final connectorPoints = previousAlign == null
+                                    ? null
+                                    : _connectorEdgePoints(
+                                        xFor(previousAlign),
+                                        -12,
+                                        xFor(align),
+                                        108,
+                                      );
+                                return Stack(
+                                  clipBehavior: Clip.none,
+                                  children: [
+                                    if (previousAlign != null)
+                                      Positioned(
+                                        top: -60,
+                                        bottom: -60,
+                                        left: 0,
+                                        right: 0,
+                                        child: IgnorePointer(
+                                          child: RepaintBoundary(
+                                            child: CustomPaint(
+                                              painter: MapPathPainter(
+                                                points: connectorPoints!,
+                                                color: Colors.blueGrey
+                                                    .withValues(alpha: 0.15),
                                               ),
                                             ),
-                                            SizedBox(
-                                              width: width,
-                                              child: Column(
-                                                children: List.generate(categoryPlans.length, (
-                                                  index,
-                                                ) {
-                                                  final plan =
-                                                      categoryPlans[index];
-                                                  final completed = progress
-                                                      .getCompleted(plan.id);
-                                                  final total =
-                                                      plan.steps.length;
-                                                  final align =
-                                                      alignments[index %
-                                                          alignments.length];
-
-                                                  return SizedBox(
-                                                    height: rowHeight,
-                                                    width: width,
-                                                    child: MapNode(
-                                                      plan: plan,
-                                                      completed: completed,
-                                                      total: total,
-                                                      alignment: align,
-                                                      onLongPress: () =>
-                                                          _showOptions(
-                                                            context,
-                                                            plan,
-                                                          ),
-                                                      onTap: () async {
-                                                        if (progress
-                                                            .canTryLesson(
-                                                              plan.id,
-                                                            )) {
-                                                          progress
-                                                              .updateLastLesson(
-                                                                plan.id,
-                                                              );
-                                                          await Navigator.push(
-                                                            context,
-                                                            MaterialPageRoute(
-                                                              builder: (_) =>
-                                                                  LessonScreen(
-                                                                    category: plan
-                                                                        .category,
-                                                                    lessonId:
-                                                                        plan.id,
-                                                                  ),
-                                                            ),
-                                                          );
-                                                          widget.onReturn();
-                                                        } else {
-                                                          ThaiDialogs.showSignupPrompt(
-                                                            context,
-                                                            title:
-                                                                "Trial Limit Reached! 🚀",
-                                                            message:
-                                                                "You've tried 3 lessons. Please create an account or login to continue learning and save your progress to the cloud!",
-                                                          );
-                                                        }
-                                                      },
-                                                    ),
-                                                  );
-                                                }),
-                                              ),
-                                            ),
-                                          ],
+                                          ),
                                         ),
                                       ),
-                                      const SizedBox(height: 24),
-                                    ],
-                                  );
-                                },
-                              );
-                            },
-                          );
-                        }),
-                      ),
-              ),
-            ),
-          ),
-        );
-      },
+                                    if (index.isOdd)
+                                      Positioned.fill(
+                                        child: IgnorePointer(
+                                          child: Align(
+                                            alignment: Alignment(
+                                              align < 0 ? 0.8 : -0.8,
+                                              0,
+                                            ),
+                                            child: Text(
+                                              _thaiConsonants[consonantIndex %
+                                                  _thaiConsonants.length],
+                                              style: TextStyle(
+                                                fontSize: 110,
+                                                fontWeight: FontWeight.bold,
+                                                color: theme
+                                                    .textTheme
+                                                    .bodyLarge
+                                                    ?.color
+                                                    ?.withValues(alpha: 0.08),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    Positioned.fill(
+                                      child: MapNode(
+                                        plan: plan,
+                                        completed: progress.getCompleted(
+                                          plan.id,
+                                        ),
+                                        total: plan.steps.length,
+                                        alignment: align,
+                                        onLongPress: () =>
+                                            _showOptions(context, plan),
+                                        onTap: () async {
+                                          if (progress.canTryLesson(plan.id)) {
+                                            progress.updateLastLesson(plan.id);
+                                            await Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (_) => LessonScreen(
+                                                  category: plan.category,
+                                                  lessonId: plan.id,
+                                                ),
+                                              ),
+                                            );
+                                            widget.onReturn();
+                                          } else {
+                                            ThaiDialogs.showSignupPrompt(
+                                              context,
+                                              title: "Trial Limit Reached! 🚀",
+                                              message:
+                                                  "You've tried 3 lessons. Please create an account or login to continue learning and save your progress to the cloud!",
+                                            );
+                                          }
+                                        },
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: SizedBox(
+                      height: categoryIndex == categoryNames.length - 1
+                          ? 144
+                          : 24,
+                    ),
+                  ),
+                ],
+              ],
+      ),
     );
   }
 }
