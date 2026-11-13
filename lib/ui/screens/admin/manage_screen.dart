@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_editor_screen.dart';
 import 'package:superthai/features/lessons/presentation/screens/manage_lessons_screen.dart';
-import 'package:superthai/ui/screens/add_admin_screen.dart';
+import 'package:superthai/ui/screens/admin/add_admin_screen.dart';
+import 'package:superthai/ui/screens/admin/import_online_image_screen.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 
 class ManageScreen extends StatelessWidget {
@@ -58,6 +59,19 @@ class ManageScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const AddAdminScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  ThaiSettingsTile(
+                    icon: Icons.image_search_rounded,
+                    title: "Import Online Image",
+                    color: Colors.blue,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ImportOnlineImageScreen(),
                         ),
                       );
                     },

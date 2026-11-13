@@ -32,7 +32,6 @@ class _CategoryPickerState extends State<CategoryPicker> {
     _allCategories = categoriesMap.entries
         .map((e) => {'name': e.key, 'emoji': e.value})
         .toList();
-    _allCategories.sort((a, b) => a['name']!.compareTo(b['name']!));
     _filteredCategories = List.from(_allCategories);
     if (mounted) {
       setState(() => _isLoading = false);

@@ -14,7 +14,7 @@ import 'package:superthai/features/lessons/presentation/question_types/take/flas
 import 'package:superthai/features/lessons/presentation/question_types/take/info_take_page.dart';
 import 'package:superthai/features/lessons/presentation/question_types/take/conversation_take_page.dart';
 import 'package:superthai/features/lessons/presentation/question_types/take/sentence_example_take_page.dart';
-import 'package:superthai/ui/widgets/lesson_completion_widget.dart';
+import 'package:superthai/ui/widgets/lesson/lesson_completion_widget.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/audio_service.dart';
@@ -7,6 +8,17 @@ import 'package:provider/provider.dart';
 import 'package:superthai/core/services/progress_service.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/core/utils/error_handler.dart';
+
+class _IndexedWord {
+  final WordEntry word;
+  final String category;
+  late final String _searchText =
+      '${word.thai} ${word.english} ${word.phonetic} $category'.toLowerCase();
+
+  _IndexedWord(this.word, this.category);
+
+  bool matches(String query) => _searchText.contains(query);
+}
 
 class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
@@ -22,9 +34,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   List<LessonPlan> _allPlans = [];
   List<WordEntry> _favoriteWords = [];
   Set<String> _favoriteIds = {};
+  Map<String, List<_IndexedWord>> _wordsByCategory = {};
+  Map<String, List<LessonPlan>> _plansByCategory = {};
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = "";
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -36,6 +51,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   void dispose() {
     dataService.removeListener(_handleDataChanged);
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -52,6 +68,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           _allPlans = results[0] as List<LessonPlan>;
           _favoriteWords = results[1] as List<WordEntry>;
           _favoriteIds = _favoriteWords.map((word) => word.stableId).toSet();
+          _rebuildSearchIndex();
         });
         _refreshWords();
       }
@@ -62,12 +79,18 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   Future<void> _handleDataChanged() async {
     try {
-      final favoriteWords = await dataService.getFavoriteWords();
+      final results = await Future.wait([
+        dataService.getAllLessonPlans(),
+        dataService.getFavoriteWords(),
+      ]);
       if (!mounted) return;
 
       setState(() {
-        _favoriteWords = favoriteWords;
-        _favoriteIds = favoriteWords.map((word) => word.stableId).toSet();
+        _allPlans = results[0] as List<LessonPlan>;
+        _plansByCategory = _groupPlansByCategory(_allPlans);
+        _favoriteWords = results[1] as List<WordEntry>;
+        _favoriteIds = _favoriteWords.map((word) => word.stableId).toSet();
+        _rebuildSearchIndex();
       });
       _refreshWords();
     } catch (e) {
@@ -78,56 +101,59 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   void _refreshWords() {
     if (!mounted) return;
 
-    setState(() {
-      if (_searchQuery.isNotEmpty) {
-        final List<WordEntry> filteredWords = [];
-        final Set<String> seenWords = {};
-        final progress = progressService;
-        final query = _searchQuery.toLowerCase();
+    List<WordEntry> words;
+    if (_searchQuery.isNotEmpty) {
+      final query = _searchQuery.trim().toLowerCase();
+      words = _wordsByCategory.values
+          .expand((entries) => entries)
+          .where((entry) => entry.matches(query))
+          .map((entry) => entry.word)
+          .toList(growable: false);
+    } else if (_selectedCategory == 'Favorites') {
+      words = _favoriteWords;
+    } else {
+      words = (_wordsByCategory[_selectedCategory] ?? const <_IndexedWord>[])
+          .where((entry) => entry.category == _selectedCategory)
+          .map((entry) => entry.word)
+          .toList(growable: false);
+    }
+    _wordsFuture = Future.value(words);
+  }
 
-        for (var lessonPlan in _allPlans) {
-          if (progress.getCompleted(lessonPlan.id) > 0 ||
-              lessonPlan.category == 'Favorites') {
-            for (var step in lessonPlan.steps) {
-              final word = _extractWordFromStep(step);
-              if (word == null) continue;
-
-              if (seenWords.contains(word.stableId)) continue;
-
-              if (word.thai.toLowerCase().contains(query) ||
-                  word.english.toLowerCase().contains(query) ||
-                  word.phonetic.toLowerCase().contains(query) ||
-                  lessonPlan.category.toLowerCase().contains(query)) {
-                filteredWords.add(word);
-                seenWords.add(word.stableId);
-              }
-            }
-          }
+  void _rebuildSearchIndex() {
+    final progress = progressService;
+    final grouped = _groupPlansByCategory(_allPlans);
+    _plansByCategory = grouped;
+    _wordsByCategory = {};
+    for (final entry in grouped.entries) {
+      final seenWords = <String>{};
+      final indexedWords = <_IndexedWord>[];
+      for (final plan in entry.value) {
+        if (progress.getCompleted(plan.id) <= 0) continue;
+        for (final step in plan.steps) {
+          final word = _extractWordFromStep(step);
+          if (word == null || !seenWords.add(word.stableId)) continue;
+          indexedWords.add(_IndexedWord(word, entry.key));
         }
-        _wordsFuture = Future.value(filteredWords);
-      } else if (_selectedCategory == 'Favorites') {
-        _wordsFuture = Future.value(_favoriteWords);
-      } else {
-        final List<WordEntry> categoryWords = [];
-        final Set<String> seenWords = {};
-
-        final categoryPlans = _allPlans.where(
-          (lessonPlan) => lessonPlan.category == _selectedCategory,
-        );
-        for (var lessonPlan in categoryPlans) {
-          for (var step in lessonPlan.steps) {
-            final word = _extractWordFromStep(step);
-            if (word != null) {
-              final wordId = word.stableId;
-              if (!seenWords.contains(wordId)) {
-                categoryWords.add(word);
-                seenWords.add(wordId);
-              }
-            }
-          }
-        }
-        _wordsFuture = Future.value(categoryWords);
       }
+      _wordsByCategory[entry.key] = indexedWords;
+    }
+  }
+
+  Map<String, List<LessonPlan>> _groupPlansByCategory(List<LessonPlan> plans) {
+    final grouped = <String, List<LessonPlan>>{};
+    for (final plan in plans) {
+      grouped.putIfAbsent(plan.category, () => []).add(plan);
+    }
+    return grouped;
+  }
+
+  void _queueSearch(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = value);
+      _refreshWords();
     });
   }
 
@@ -186,7 +212,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final categories = _allPlans.map((p) => p.category).toSet().toList();
+    final categories = _plansByCategory.keys.toList();
     final progress = Provider.of<ProgressService>(context);
 
     return Scaffold(
@@ -200,10 +226,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
               controller: _searchController,
               hintText: "Search words or categories...",
               onChanged: (val) {
-                setState(() => _searchQuery = val);
-                _refreshWords();
+                _queueSearch(val);
               },
               onClear: () {
+                _searchDebounce?.cancel();
                 _searchController.clear();
                 setState(() => _searchQuery = "");
                 _refreshWords();
@@ -220,9 +246,8 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                 children: [
                   _buildCategoryChip('Favorites', true),
                   ...categories.map((categoryName) {
-                    final categoryPlans = _allPlans.where(
-                      (lessonPlan) => lessonPlan.category == categoryName,
-                    );
+                    final categoryPlans =
+                        _plansByCategory[categoryName] ?? const <LessonPlan>[];
                     final isUnlocked = categoryPlans.any(
                       (lessonPlan) => progress.getCompleted(lessonPlan.id) > 0,
                     );

@@ -291,5 +291,14 @@ class MapPathPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant MapPathPainter oldDelegate) => true;
+  bool shouldRepaint(covariant MapPathPainter oldDelegate) {
+    if (color != oldDelegate.color ||
+        points.length != oldDelegate.points.length) {
+      return true;
+    }
+    for (var i = 0; i < points.length; i++) {
+      if (points[i] != oldDelegate.points[i]) return true;
+    }
+    return false;
+  }
 }

@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
-import 'package:superthai/ui/screens/add_discover_screen.dart';
+import 'package:superthai/ui/screens/discover/add_discover_screen.dart';
 import 'package:superthai/core/services/auth_service.dart';
 import 'package:superthai/core/utils/error_handler.dart';
 
@@ -18,19 +19,77 @@ class DiscoverScreen extends StatefulWidget {
 }
 
 class _DiscoverScreenState extends State<DiscoverScreen> {
-  late Future<List<DiscoverItem>> _discoverFuture;
+  static const int _pageSize = 20;
+  final ScrollController _scrollController = ScrollController();
+  final List<DiscoverItem> _items = [];
+  DocumentSnapshot<Map<String, dynamic>>? _lastDocument;
+  bool _isLoading = true;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
+  Object? _loadError;
+  int _requestGeneration = 0;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _refreshDiscover();
   }
 
-  void _refreshDiscover() {
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.extentAfter < 400) _loadNextPage();
+  }
+
+  Future<void> _refreshDiscover() async {
     if (!mounted) return;
+    _requestGeneration++;
     setState(() {
-      _discoverFuture = DataService.instance.getAllDiscoverItems();
+      _items.clear();
+      _lastDocument = null;
+      _hasMore = true;
+      _isLoading = true;
+      _isLoadingMore = false;
+      _loadError = null;
     });
+    await _loadNextPage(initial: true);
+  }
+
+  Future<void> _loadNextPage({bool initial = false}) async {
+    if (!mounted || _isLoadingMore || (!_hasMore && !initial)) return;
+    final generation = _requestGeneration;
+    setState(() {
+      _isLoadingMore = true;
+      _loadError = null;
+    });
+    try {
+      final page = await DataService.instance.getDiscoverPage(
+        startAfter: initial ? null : _lastDocument,
+        limit: _pageSize,
+      );
+      if (!mounted || generation != _requestGeneration) return;
+      setState(() {
+        _items.addAll(page.items);
+        _lastDocument = page.lastDocument;
+        _hasMore = page.hasMore;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted || generation != _requestGeneration) return;
+      setState(() {
+        _loadError = error;
+        _isLoading = false;
+      });
+    } finally {
+      if (mounted && generation == _requestGeneration) {
+        setState(() => _isLoadingMore = false);
+      }
+    }
   }
 
   Future<void> _deleteDiscoverItem(String id) async {
@@ -95,23 +154,20 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ],
           ),
           body: RefreshIndicator(
-            onRefresh: () async => _refreshDiscover(),
+            onRefresh: _refreshDiscover,
             color: AppTheme.primaryColor,
-            child: FutureBuilder<List<DiscoverItem>>(
-              future: _discoverFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
+            child: Builder(
+              builder: (context) {
+                if (_isLoading) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                if (snapshot.hasError) {
+                if (_loadError != null && _items.isEmpty) {
                   return Center(
-                    child: Text(ErrorHandler.getMessage(snapshot.error)),
+                    child: Text(ErrorHandler.getMessage(_loadError)),
                   );
                 }
 
-                final items = snapshot.data ?? [];
-
-                if (items.isEmpty) {
+                if (_items.isEmpty) {
                   return ListView(
                     children: [
                       SizedBox(
@@ -142,13 +198,32 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                 }
 
                 return ListView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 20,
                     vertical: 16,
                   ),
-                  itemCount: items.length,
+                  itemCount:
+                      _items.length + (_hasMore || _loadError != null ? 1 : 0),
                   itemBuilder: (context, index) {
-                    final item = items[index];
+                    if (index == _items.length) {
+                      if (_loadError != null) {
+                        return Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: TextButton(
+                              onPressed: _loadNextPage,
+                              child: Text(ErrorHandler.getMessage(_loadError)),
+                            ),
+                          ),
+                        );
+                      }
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final item = _items[index];
                     return _buildDiscoverCard(item, isAdmin);
                   },
                 );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
-import 'package:superthai/ui/screens/markdown_editor_screen.dart';
+import 'package:superthai/ui/screens/editor/markdown_editor_screen.dart';
 
 class InfoCreatePage extends StatefulWidget {
   final String title;

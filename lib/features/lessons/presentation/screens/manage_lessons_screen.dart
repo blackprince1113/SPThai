@@ -47,6 +47,15 @@ class _ManageLessonsScreenState extends State<ManageLessonsScreen> {
   }
 
   Future<void> _saveOrder() async {
+    final confirm = await ThaiDialogs.showConfirmDialog(
+      context,
+      title: "Confirm Save",
+      content: "Do you want to save the new lesson order?",
+      confirmLabel: "Yes",
+      cancelLabel: "No",
+    );
+    if (!confirm) return;
+
     setState(() => _isLoading = true);
     try {
       await dataService.updateLessonIndices(_allPlans);
@@ -66,6 +75,25 @@ class _ManageLessonsScreenState extends State<ManageLessonsScreen> {
     }
   }
 
+  ({Map<String, List<LessonPlan>> groups, List<String> categoryOrder})
+  _groupLessonsByCategory() {
+    final groups = <String, List<LessonPlan>>{};
+    final categoryOrder = <String>[];
+    for (final plan in _allPlans) {
+      if (!groups.containsKey(plan.category)) {
+        groups[plan.category] = <LessonPlan>[];
+        categoryOrder.add(plan.category);
+      }
+      groups[plan.category]!.add(plan);
+    }
+    return (groups: groups, categoryOrder: categoryOrder);
+  }
+
+  List<String> _filterCategories(Iterable<String> categories) {
+    final query = _searchQuery.toLowerCase();
+    return categories.where((category) => category.toLowerCase().contains(query)).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -73,20 +101,10 @@ class _ManageLessonsScreenState extends State<ManageLessonsScreen> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final Map<String, List<LessonPlan>> groups = {};
-    final List<String> categoryOrder = [];
-
-    for (var plan in _allPlans) {
-      if (!groups.containsKey(plan.category)) {
-        groups[plan.category] = [];
-        categoryOrder.add(plan.category);
-      }
-      groups[plan.category]!.add(plan);
-    }
-
-    final filteredCategoryOrder = categoryOrder
-        .where((cat) => cat.toLowerCase().contains(_searchQuery.toLowerCase()))
-        .toList();
+    final groupedLessons = _groupLessonsByCategory();
+    final groups = groupedLessons.groups;
+    final categoryOrder = groupedLessons.categoryOrder;
+    final filteredCategoryOrder = _filterCategories(categoryOrder);
 
     return Scaffold(
       appBar: ThaiAppBar(

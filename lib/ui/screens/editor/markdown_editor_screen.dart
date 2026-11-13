@@ -48,17 +48,24 @@ class _MarkdownEditorScreenState extends State<MarkdownEditorScreen> {
       );
       _controller.text = newText;
       _controller.selection = TextSelection.collapsed(
-        offset: selection.start + prefix.length + selectedText.length + suffix.length,
+        offset:
+            selection.start +
+            prefix.length +
+            selectedText.length +
+            suffix.length,
       );
     } else {
       final currentPos = selection.start;
-      final newText = text.replaceRange(currentPos, currentPos, '$prefix$suffix');
+      final newText = text.replaceRange(
+        currentPos,
+        currentPos,
+        '$prefix$suffix',
+      );
       _controller.text = newText;
       _controller.selection = TextSelection.collapsed(
         offset: currentPos + prefix.length,
       );
     }
-    setState(() {});
   }
 
   void _previewInInfoPage() {
@@ -133,12 +140,14 @@ class _MarkdownEditorScreenState extends State<MarkdownEditorScreen> {
                   maxLines: null,
                   expands: true,
                   textAlignVertical: TextAlignVertical.top,
-                  style: TextStyle(fontSize: 16, color: theme.textTheme.bodyLarge?.color),
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: theme.textTheme.bodyLarge?.color,
+                  ),
                   decoration: const InputDecoration(
                     hintText: "Write your content here...",
                     border: InputBorder.none,
                   ),
-                  onChanged: (val) => setState(() {}),
                 ),
               ),
             ),
@@ -166,13 +175,31 @@ class _MarkdownEditorScreenState extends State<MarkdownEditorScreen> {
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  _ToolbarIcon(icon: Icons.format_bold, onPressed: () => _formatText('**', '**')),
-                  _ToolbarIcon(icon: Icons.format_italic, onPressed: () => _formatText('*', '*')),
-                  _ToolbarIcon(icon: Icons.format_underlined, onPressed: () => _formatText('<u>', '</u>')),
+                  _ToolbarIcon(
+                    icon: Icons.format_bold,
+                    onPressed: () => _formatText('**', '**'),
+                  ),
+                  _ToolbarIcon(
+                    icon: Icons.format_italic,
+                    onPressed: () => _formatText('*', '*'),
+                  ),
+                  _ToolbarIcon(
+                    icon: Icons.format_underlined,
+                    onPressed: () => _formatText('<u>', '</u>'),
+                  ),
                   const SizedBox(width: 8),
-                  _ToolbarIcon(icon: Icons.format_size, onPressed: () => _formatText('# ', '')),
-                  _ToolbarIcon(icon: Icons.format_list_bulleted, onPressed: () => _formatText('\n- ', '')),
-                  _ToolbarIcon(icon: Icons.format_quote, onPressed: () => _formatText('\n> ', '')),
+                  _ToolbarIcon(
+                    icon: Icons.format_size,
+                    onPressed: () => _formatText('# ', ''),
+                  ),
+                  _ToolbarIcon(
+                    icon: Icons.format_list_bulleted,
+                    onPressed: () => _formatText('\n- ', ''),
+                  ),
+                  _ToolbarIcon(
+                    icon: Icons.format_quote,
+                    onPressed: () => _formatText('\n> ', ''),
+                  ),
                 ],
               ),
             ),

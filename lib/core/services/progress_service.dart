@@ -26,6 +26,7 @@ class ProgressService extends ChangeNotifier {
   DateTime? _lastActivityDate;
   Future<void>? _progressWriteFuture;
   bool _progressWriteRequested = false;
+  bool _userMetadataDirty = false;
   late final ProgressRepository _progressRepository = ProgressRepository(_db);
 
   static const String _triedLessonsKey = 'tried_lessons';
@@ -112,7 +113,10 @@ class ProgressService extends ChangeNotifier {
     }
     if (addedIndex || addedStepId) {
       _dirtyProgressLessonIds.add(lessonId);
-      if (addedIndex) _updateStreak();
+      if (addedIndex) {
+        _updateStreak();
+        _userMetadataDirty = true;
+      }
 
       if (AuthService.instance.currentUser != null) {
         _saveProgressToFirestore();
@@ -194,7 +198,10 @@ class ProgressService extends ChangeNotifier {
   }
 
   void resetProgress(String lessonId) {
-    if (_lastLessonId == lessonId) _lastLessonId = null;
+    if (_lastLessonId == lessonId) {
+      _lastLessonId = null;
+      _userMetadataDirty = true;
+    }
     if (_completedStepIndices.containsKey(lessonId)) {
       _completedStepIndices.remove(lessonId);
       _completedStepIds.remove(lessonId);
@@ -240,27 +247,36 @@ class ProgressService extends ChangeNotifier {
       final activityDateSnapshot = _lastActivityDate;
       final dirtyLessonIds = Set<String>.from(_dirtyProgressLessonIds);
       final deletedLessonIds = Set<String>.from(_pendingProgressDeletes);
+      final writeMetadata = _userMetadataDirty;
       _dirtyProgressLessonIds.clear();
       _pendingProgressDeletes.clear();
+      _userMetadataDirty = false;
 
       try {
-        for (final lessonId in deletedLessonIds) {
-          await _progressRepository.deleteLesson(user.uid, lessonId);
-        }
+        final lessonsToSave = <String, Map<String, dynamic>>{};
         for (final lessonId in dirtyLessonIds) {
-          await _progressRepository.saveLesson(
-            user.uid,
-            lessonId,
-            completedStepIds: stepIdSnapshot[lessonId] ?? const [],
-            lastStepId: lastStepIdSnapshot[lessonId],
-          );
+          if (deletedLessonIds.contains(lessonId)) continue;
+          lessonsToSave[lessonId] = {
+            'completedStepIds': (stepIdSnapshot[lessonId] ?? const <String>[])
+                .toSet()
+                .toList(),
+            'lastStepId': lastStepIdSnapshot[lessonId],
+            'updatedAt': FieldValue.serverTimestamp(),
+            'schemaVersion': 3,
+          };
         }
+        await _progressRepository.saveLessons(
+          user.uid,
+          lessonsToSave,
+          deleteLessonIds: deletedLessonIds,
+        );
       } catch (e) {
         _dirtyProgressLessonIds.addAll(dirtyLessonIds);
         _pendingProgressDeletes.addAll(deletedLessonIds);
         debugPrint("Error saving per-lesson progress: $e");
       }
 
+      if (!writeMetadata) continue;
       try {
         final userRef = _db.collection(usersCollection).doc(user.uid);
         await userRef.set({
@@ -273,6 +289,7 @@ class ProgressService extends ChangeNotifier {
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       } catch (e) {
+        _userMetadataDirty = true;
         debugPrint("Error saving user progress metadata: $e");
       }
     }
@@ -352,6 +369,7 @@ class ProgressService extends ChangeNotifier {
   void saveScrollOffset(double offset) {
     if ((_lastScrollOffset - offset).abs() < 2.0) return;
     _lastScrollOffset = offset;
+    _userMetadataDirty = true;
     _prefs?.setDouble('last_scroll_offset', offset);
     if (AuthService.instance.currentUser != null) {
       _saveProgressToFirestore();
@@ -361,6 +379,7 @@ class ProgressService extends ChangeNotifier {
   void updateLastLesson(String lessonId) {
     _lastLessonId = lessonId;
     if (AuthService.instance.currentUser != null) {
+      _userMetadataDirty = true;
       _saveProgressToFirestore();
     } else {
       _saveLocalProgress();

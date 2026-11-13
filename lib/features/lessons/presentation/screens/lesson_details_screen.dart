@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/data_service.dart';
-import 'package:superthai/ui/widgets/category_picker.dart';
+import 'package:superthai/ui/widgets/editor/category_picker.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:superthai/core/utils/error_handler.dart';
@@ -51,6 +51,15 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
       );
       return;
     }
+
+    final confirm = await ThaiDialogs.showConfirmDialog(
+      context,
+      title: "Confirm Save",
+      content: "Do you want to save and publish this lesson?",
+      confirmLabel: "Yes",
+      cancelLabel: "No",
+    );
+    if (!confirm) return;
 
     setState(() => _isSaving = true);
 
@@ -116,27 +125,30 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(
-                          alpha: theme.brightness == Brightness.light
-                              ? 0.1
-                              : 0.3,
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _emojiController,
+                  builder: (context, value, child) => Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: theme.brightness == Brightness.light
+                                ? 0.1
+                                : 0.3,
+                          ),
+                          blurRadius: 20,
                         ),
-                        blurRadius: 20,
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        value.text,
+                        style: const TextStyle(fontSize: 50),
                       ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      _emojiController.text,
-                      style: const TextStyle(fontSize: 50),
                     ),
                   ),
                 ),
@@ -200,7 +212,6 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
                           controller: _emojiController,
                           textAlign: TextAlign.center,
                           maxLength: 2,
-                          onChanged: (val) => setState(() {}),
                           style: TextStyle(
                             color: theme.textTheme.bodyLarge?.color,
                           ),
@@ -260,12 +271,10 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
                                   context,
                                 );
                                 if (result != null) {
-                                  setState(() {
-                                    _categoryController.text =
-                                        result['name'] ?? '';
-                                    _categoryEmojiController.text =
-                                        result['emoji'] ?? '🎯';
-                                  });
+                                  _categoryController.text =
+                                      result['name'] ?? '';
+                                  _categoryEmojiController.text =
+                                      result['emoji'] ?? '🎯';
                                 }
                               },
                             ),
@@ -298,7 +307,6 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
                           controller: _categoryEmojiController,
                           textAlign: TextAlign.center,
                           maxLength: 2,
-                          onChanged: (val) => setState(() {}),
                           style: TextStyle(
                             color: theme.textTheme.bodyLarge?.color,
                           ),

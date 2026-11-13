@@ -22,28 +22,32 @@ class ProgressRepository {
     return _progress(userId)
         .doc(lessonId)
         .set(
-          _progressData(
-            completedStepIds,
-            lastStepId,
-          ),
+          _progressData(completedStepIds, lastStepId),
           SetOptions(merge: true),
         );
   }
 
   Future<void> saveLessons(
     String userId,
-    Map<String, Map<String, dynamic>> lessons,
-  ) async {
-    final entries = lessons.entries.toList();
-    for (var start = 0; start < entries.length; start += 450) {
+    Map<String, Map<String, dynamic>> lessons, {
+    Iterable<String> deleteLessonIds = const [],
+  }) async {
+    final writes = <({String lessonId, Map<String, dynamic>? data})>[
+      for (final entry in lessons.entries)
+        (lessonId: entry.key, data: entry.value),
+      for (final lessonId in deleteLessonIds)
+        if (!lessons.containsKey(lessonId)) (lessonId: lessonId, data: null),
+    ];
+    for (var start = 0; start < writes.length; start += 450) {
       final batch = _db.batch();
-      final end = (start + 450).clamp(0, entries.length).toInt();
-      for (final entry in entries.sublist(start, end)) {
-        batch.set(
-          _progress(userId).doc(entry.key),
-          entry.value,
-          SetOptions(merge: true),
-        );
+      final end = (start + 450).clamp(0, writes.length).toInt();
+      for (final write in writes.sublist(start, end)) {
+        final ref = _progress(userId).doc(write.lessonId);
+        if (write.data == null) {
+          batch.delete(ref);
+        } else {
+          batch.set(ref, write.data!, SetOptions(merge: true));
+        }
       }
       await batch.commit();
     }

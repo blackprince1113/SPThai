@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/data_service.dart';
-import 'package:superthai/ui/screens/main_container.dart';
+import 'package:superthai/ui/screens/navigation/main_container.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_screen.dart';
 
@@ -24,18 +25,41 @@ class _AppDrawerState extends State<AppDrawer> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
   String _searchQuery = '';
+  late Future<List<LessonPlan>> _plansFuture;
+  Timer? _searchDebounce;
+  List<LessonPlan>? _loadedPlans;
+  Map<String, List<LessonPlan>> _categoryMap = const {};
+  List<String> _categoryNames = const [];
+  String? _indexedQuery;
+  List<_SearchResult> _indexedResults = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _plansFuture = dataService.getAllLessonPlans();
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
     _searchFocusNode.dispose();
+    _searchDebounce?.cancel();
     super.dispose();
   }
 
   void _clearSearch() {
+    _searchDebounce?.cancel();
     _searchController.clear();
     setState(() {
       _searchQuery = '';
+    });
+  }
+
+  void _queueSearch(String value) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() => _searchQuery = value);
     });
   }
 
@@ -108,18 +132,27 @@ class _AppDrawerState extends State<AppDrawer> {
           // Search Results or Categories List
           Expanded(
             child: FutureBuilder<List<LessonPlan>>(
-              future: dataService.getAllLessonPlans(),
+              future: _plansFuture,
               builder: (context, snapshot) {
                 final plans = snapshot.data ?? [];
+                if (!identical(_loadedPlans, plans)) {
+                  _loadedPlans = plans;
+                  _indexedQuery = null;
 
-                // Group plans by category
-                final Map<String, List<LessonPlan>> categoryMap = {};
-                for (var plan in plans) {
-                  if (plan.category.isNotEmpty) {
-                    categoryMap.putIfAbsent(plan.category, () => []).add(plan);
+                  final categoryMap = <String, List<LessonPlan>>{};
+                  for (final plan in plans) {
+                    if (plan.category.isNotEmpty) {
+                      categoryMap
+                          .putIfAbsent(plan.category, () => <LessonPlan>[])
+                          .add(plan);
+                    }
                   }
+                  _categoryMap = categoryMap;
+                  _categoryNames = categoryMap.keys.toList();
                 }
-                final categoryNames = categoryMap.keys.toList();
+
+                final categoryMap = _categoryMap;
+                final categoryNames = _categoryNames;
 
                 if (plans.isEmpty &&
                     snapshot.connectionState == ConnectionState.waiting) {
@@ -130,11 +163,17 @@ class _AppDrawerState extends State<AppDrawer> {
 
                 // --- WHEN SEARCHING ---
                 if (_searchQuery.trim().isNotEmpty) {
-                  final results = _filterPlans(plans, _searchQuery);
+                  if (_indexedQuery != _searchQuery) {
+                    _indexedQuery = _searchQuery;
+                    _indexedResults = _filterPlans(plans, _searchQuery);
+                  }
+                  final results = _indexedResults;
                   final matchingCatNames = categoryNames
-                      .where((cat) => cat
-                          .toLowerCase()
-                          .contains(_searchQuery.trim().toLowerCase()))
+                      .where(
+                        (cat) => cat.toLowerCase().contains(
+                          _searchQuery.trim().toLowerCase(),
+                        ),
+                      )
                       .toList();
 
                   if (results.isEmpty && matchingCatNames.isEmpty) {
@@ -228,8 +267,8 @@ class _AppDrawerState extends State<AppDrawer> {
                           final emoji = firstPlan.categoryEmoji.isNotEmpty
                               ? firstPlan.categoryEmoji
                               : (firstPlan.emoji.isNotEmpty
-                                  ? firstPlan.emoji
-                                  : '📚');
+                                    ? firstPlan.emoji
+                                    : '📚');
                           return _buildCategoryResultTile(
                             context,
                             categoryName: catName,
@@ -310,9 +349,10 @@ class _AppDrawerState extends State<AppDrawer> {
                         final emoji = firstPlan.categoryEmoji.isNotEmpty
                             ? firstPlan.categoryEmoji
                             : (firstPlan.emoji.isNotEmpty
-                                ? firstPlan.emoji
-                                : '📚');
-                        final isSelected = currentIndex == 0 &&
+                                  ? firstPlan.emoji
+                                  : '📚');
+                        final isSelected =
+                            currentIndex == 0 &&
                             (selectedCategory == catName ||
                                 (selectedCategory == null &&
                                     catName == categoryNames.first));
@@ -347,8 +387,9 @@ class _AppDrawerState extends State<AppDrawer> {
                   return Text(
                     'SuperThai v$version',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.textTheme.bodySmall?.color
-                          ?.withValues(alpha: 0.5),
+                      color: theme.textTheme.bodySmall?.color?.withValues(
+                        alpha: 0.5,
+                      ),
                     ),
                   );
                 },
@@ -371,10 +412,7 @@ class _AppDrawerState extends State<AppDrawer> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDark
-              ? [
-                  const Color(0xFF2C2C2C),
-                  const Color(0xFF1E1E1E),
-                ]
+              ? [const Color(0xFF2C2C2C), const Color(0xFF1E1E1E)]
               : [
                   primaryColor,
                   primaryColor.withValues(alpha: 0.88),
@@ -431,11 +469,7 @@ class _AppDrawerState extends State<AppDrawer> {
             child: Row(
               children: [
                 const SizedBox(width: 14),
-                Icon(
-                  Icons.search_rounded,
-                  color: primaryColor,
-                  size: 22,
-                ),
+                Icon(Icons.search_rounded, color: primaryColor, size: 22),
                 const SizedBox(width: 8),
                 Expanded(
                   child: TextField(
@@ -462,9 +496,7 @@ class _AppDrawerState extends State<AppDrawer> {
                       isDense: true,
                     ),
                     onChanged: (val) {
-                      setState(() {
-                        _searchQuery = val;
-                      });
+                      _queueSearch(val);
                     },
                   ),
                 ),
@@ -505,9 +537,7 @@ class _AppDrawerState extends State<AppDrawer> {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: primaryColor.withValues(alpha: 0.15),
-        ),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.15)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.03),
@@ -525,17 +555,11 @@ class _AppDrawerState extends State<AppDrawer> {
             color: primaryColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(
-            emoji,
-            style: const TextStyle(fontSize: 20),
-          ),
+          child: Text(emoji, style: const TextStyle(fontSize: 20)),
         ),
         title: Text(
           plan.title,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -560,10 +584,7 @@ class _AppDrawerState extends State<AppDrawer> {
             Expanded(
               child: Text(
                 result.matchReason,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: theme.disabledColor,
-                ),
+                style: TextStyle(fontSize: 11, color: theme.disabledColor),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -576,11 +597,7 @@ class _AppDrawerState extends State<AppDrawer> {
             color: primaryColor.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
-          child: Icon(
-            Icons.play_arrow_rounded,
-            color: primaryColor,
-            size: 18,
-          ),
+          child: Icon(Icons.play_arrow_rounded, color: primaryColor, size: 18),
         ),
         onTap: () {
           Navigator.pop(context);
@@ -588,10 +605,8 @@ class _AppDrawerState extends State<AppDrawer> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => LessonScreen(
-                category: plan.category,
-                lessonId: plan.id,
-              ),
+              builder: (_) =>
+                  LessonScreen(category: plan.category, lessonId: plan.id),
             ),
           );
         },
@@ -613,9 +628,7 @@ class _AppDrawerState extends State<AppDrawer> {
       decoration: BoxDecoration(
         color: primaryColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: primaryColor.withValues(alpha: 0.25),
-        ),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.25)),
       ),
       child: ListTile(
         leading: Container(
@@ -626,10 +639,7 @@ class _AppDrawerState extends State<AppDrawer> {
             color: primaryColor.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(
-            emoji,
-            style: const TextStyle(fontSize: 20),
-          ),
+          child: Text(emoji, style: const TextStyle(fontSize: 20)),
         ),
         title: Text(
           'หมวดหมู่: $categoryName',
@@ -643,11 +653,7 @@ class _AppDrawerState extends State<AppDrawer> {
           'เปิดแผนที่เรียนทั้ง $lessonCount บทเรียน',
           style: const TextStyle(fontSize: 11),
         ),
-        trailing: Icon(
-          Icons.map_rounded,
-          color: primaryColor,
-          size: 20,
-        ),
+        trailing: Icon(Icons.map_rounded, color: primaryColor, size: 20),
         onTap: () {
           Navigator.pop(context);
           mainState?.selectCategory(categoryName);
@@ -680,19 +686,14 @@ class _AppDrawerState extends State<AppDrawer> {
                 : theme.dividerColor.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Text(
-            emoji,
-            style: const TextStyle(fontSize: 18),
-          ),
+          child: Text(emoji, style: const TextStyle(fontSize: 18)),
         ),
         title: Text(
           title,
           style: TextStyle(
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
             fontSize: 14,
-            color: isSelected
-                ? primaryColor
-                : theme.textTheme.bodyLarge?.color,
+            color: isSelected ? primaryColor : theme.textTheme.bodyLarge?.color,
           ),
         ),
         trailing: Container(
@@ -714,9 +715,7 @@ class _AppDrawerState extends State<AppDrawer> {
         ),
         selected: isSelected,
         selectedTileColor: primaryColor.withValues(alpha: 0.08),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         onTap: onTap,
       ),

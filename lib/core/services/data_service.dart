@@ -19,10 +19,16 @@ class DataService extends ChangeNotifier {
   List<LessonPlan>? _cachedPlans;
   Future<List<LessonPlan>>? _plansLoadFuture;
   int _plansRevision = 0;
+  DateTime? _lastBackgroundSyncAt;
   final Map<String, List<WordEntry>> _wordsByCategoryCache = {};
+  List<QueryDocumentSnapshot<Map<String, dynamic>>>? _discoverFallbackDocs;
+  bool _discoverCompositeIndexUnavailable = false;
 
   static const String newsCollection = 'discover';
   static const String _lessonCacheKey = 'cached_lesson_plans_v2';
+  static const Duration _backgroundSyncInterval = Duration(minutes: 5);
+  // Keep the number of simultaneous lesson document + steps reads bounded.
+  static const int _categoryLessonLoadConcurrency = 4;
 
   DataService._internal() {
     _initLocalCache();
@@ -100,20 +106,32 @@ class DataService extends ChangeNotifier {
 
   void _syncPlansInBackground() {
     if (_plansLoadFuture != null) return;
+    final now = DateTime.now();
+    final lastSync = _lastBackgroundSyncAt;
+    if (lastSync != null &&
+        now.difference(lastSync) < _backgroundSyncInterval) {
+      return;
+    }
+    _lastBackgroundSyncAt = now;
     final revision = _plansRevision;
     final load = _loadLessonPlans();
     _plansLoadFuture = load;
-    load.then((plans) {
-      if (revision == _plansRevision && plans.isNotEmpty) {
-        _cachedPlans = plans;
-        _savePlansToLocalCache(plans);
-        notifyListeners();
-      }
-    }).catchError((e) {
-      debugPrint("Background sync error: $e");
-    }).whenComplete(() {
-      _plansLoadFuture = null;
-    });
+    load
+        .then((plans) {
+          if (revision == _plansRevision && plans.isNotEmpty) {
+            _cachedPlans = plans;
+            _savePlansToLocalCache(plans);
+            notifyListeners();
+          }
+        })
+        .catchError((e) {
+          debugPrint("Background sync error: $e");
+        })
+        .whenComplete(() {
+          if (identical(_plansLoadFuture, load)) {
+            _plansLoadFuture = null;
+          }
+        });
   }
 
   Future<List<LessonPlan>> _loadLessonPlans() async {
@@ -155,10 +173,7 @@ class DataService extends ChangeNotifier {
         emoji: plan.emoji,
         steps: List.generate(
           plan.steps.length,
-          (i) => LessonStepData(
-            id: 'placeholder_$i',
-            type: 'flashcard',
-          ),
+          (i) => LessonStepData(id: 'placeholder_$i', type: 'flashcard'),
         ),
         creatorId: plan.creatorId,
         createdAt: plan.createdAt,
@@ -186,12 +201,30 @@ class DataService extends ChangeNotifier {
     final List<WordEntry> words = [];
     final Set<String> seenIds = {};
 
-    final categoryPlans = plans.where((p) => p.category == category);
-    for (var plan in categoryPlans) {
-      LessonPlan? fullPlan = plan;
-      if (plan.steps.any((s) => s.id.startsWith('placeholder_'))) {
-        fullPlan = await getLessonPlanById(plan.id);
-      }
+    final categoryPlans = plans.where((p) => p.category == category).toList();
+    final resolvedPlans = <LessonPlan?>[];
+    for (
+      var start = 0;
+      start < categoryPlans.length;
+      start += _categoryLessonLoadConcurrency
+    ) {
+      final end = (start + _categoryLessonLoadConcurrency)
+          .clamp(0, categoryPlans.length)
+          .toInt();
+      final batch = categoryPlans.sublist(start, end);
+      resolvedPlans.addAll(
+        await Future.wait(
+          batch.map((plan) {
+            if (!plan.steps.any((step) => step.id.startsWith('placeholder_'))) {
+              return Future<LessonPlan?>.value(plan);
+            }
+            return getLessonPlanById(plan.id);
+          }),
+        ),
+      );
+    }
+
+    for (final fullPlan in resolvedPlans) {
       if (fullPlan != null) {
         for (var step in fullPlan.steps) {
           final word = step.toWordEntry();
@@ -231,6 +264,7 @@ class DataService extends ChangeNotifier {
     _plansRevision++;
     _cachedPlans = null;
     _plansLoadFuture = null;
+    _lastBackgroundSyncAt = null;
     _wordsByCategoryCache.clear();
   }
 
@@ -260,26 +294,99 @@ class DataService extends ChangeNotifier {
         .collection(newsCollection)
         .doc(item.id)
         .set(item.toMap(), SetOptions(merge: true));
+    _discoverFallbackDocs = null;
   }
 
   Future<void> deleteDiscoverItem(String id) async {
     await _db.collection(newsCollection).doc(id).delete();
+    _discoverFallbackDocs = null;
   }
 
-  Future<List<DiscoverItem>> getAllDiscoverItems() async {
-    final snapshot = await _db.collection(newsCollection).get();
-    final items = snapshot.docs
-        .map((doc) => DiscoverItem.fromMap(doc.data()))
-        .toList();
+  Future<DiscoverPage> getDiscoverPage({
+    DocumentSnapshot<Map<String, dynamic>>? startAfter,
+    int limit = 20,
+  }) async {
+    if (_discoverCompositeIndexUnavailable) {
+      return _getDiscoverPageFromFallback(startAfter: startAfter, limit: limit);
+    }
 
-    items.sort((a, b) {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      return b.date.compareTo(a.date);
-    });
+    Query<Map<String, dynamic>> query = _db
+        .collection(newsCollection)
+        .orderBy('isPinned', descending: true)
+        .orderBy('date', descending: true)
+        .limit(limit);
+    if (startAfter != null) query = query.startAfterDocument(startAfter);
 
-    return items;
+    try {
+      final snapshot = await query.get();
+      return DiscoverPage(
+        items: snapshot.docs
+            .map((doc) => DiscoverItem.fromMap(doc.data()))
+            .toList(growable: false),
+        lastDocument: snapshot.docs.isEmpty ? startAfter : snapshot.docs.last,
+        hasMore: snapshot.docs.length == limit,
+      );
+    } on FirebaseException catch (error) {
+      // The composite index may not have been deployed yet. Keep Discover
+      // usable while falling back to a single collection read and local sort.
+      if (error.code != 'failed-precondition') rethrow;
+      _discoverCompositeIndexUnavailable = true;
+      return _getDiscoverPageFromFallback(startAfter: startAfter, limit: limit);
+    }
   }
+
+  Future<DiscoverPage> _getDiscoverPageFromFallback({
+    required DocumentSnapshot<Map<String, dynamic>>? startAfter,
+    required int limit,
+  }) async {
+    var docs = _discoverFallbackDocs;
+    if (docs == null || startAfter == null) {
+      final snapshot = await _db.collection(newsCollection).get();
+      docs = snapshot.docs.toList()
+        ..sort((a, b) {
+          final aPinned = a.data()['isPinned'] == true;
+          final bPinned = b.data()['isPinned'] == true;
+          if (aPinned != bPinned) return aPinned ? -1 : 1;
+          return _discoverDate(
+            b.data()['date'],
+          ).compareTo(_discoverDate(a.data()['date']));
+        });
+      _discoverFallbackDocs = docs;
+    }
+
+    final cursorIndex = startAfter == null
+        ? -1
+        : docs.indexWhere((doc) => doc.id == startAfter.id);
+    final start = cursorIndex + 1;
+    final end = (start + limit).clamp(0, docs.length).toInt();
+    final pageDocs = docs.sublist(start, end);
+    return DiscoverPage(
+      items: pageDocs
+          .map((doc) => DiscoverItem.fromMap(doc.data()))
+          .toList(growable: false),
+      lastDocument: pageDocs.isEmpty ? startAfter : pageDocs.last,
+      hasMore: end < docs.length,
+    );
+  }
+
+  DateTime _discoverDate(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) return DateTime.tryParse(value) ?? DateTime(1970);
+    return DateTime(1970);
+  }
+}
+
+class DiscoverPage {
+  final List<DiscoverItem> items;
+  final DocumentSnapshot<Map<String, dynamic>>? lastDocument;
+  final bool hasMore;
+
+  const DiscoverPage({
+    required this.items,
+    required this.lastDocument,
+    required this.hasMore,
+  });
 }
 
 final dataService = DataService.instance;

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
-import 'package:superthai/ui/widgets/category_picker.dart';
+import 'package:superthai/ui/widgets/editor/category_picker.dart';
 
 class LessonSettingsSheet extends StatefulWidget {
   final String initialTitle;

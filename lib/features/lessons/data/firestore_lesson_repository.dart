@@ -156,27 +156,30 @@ class FirestoreLessonRepository implements LessonRepository {
     final metadataRef = _plans.doc(plan.id);
     final stepsRef = metadataRef.collection('steps');
     final existingSteps = await stepsRef.get();
+    final existingById = {for (final doc in existingSteps.docs) doc.id: doc};
     final retainedIds = plan.steps.map((step) => step.id).toSet();
     final staleSteps = existingSteps.docs
         .where((doc) => !retainedIds.contains(doc.id))
         .toList();
 
-    await metadataRef.delete();
-
     final operations = <void Function(WriteBatch)>[];
     for (var position = 0; position < plan.steps.length; position++) {
       final step = plan.steps[position];
       final stepPosition = position;
+      final data = {...step.toMap(), 'position': stepPosition};
+      final existing = existingById[step.id]?.data();
+      if (existing != null && _sameStepData(existing, data)) continue;
       operations.add((batch) {
-        batch.set(stepsRef.doc(step.id), {
-          ...step.toMap(),
-          'position': stepPosition,
-        });
+        batch.set(stepsRef.doc(step.id), data);
       });
     }
     for (final staleStep in staleSteps) {
       operations.add((batch) => batch.delete(staleStep.reference));
     }
+
+    // Keep the parent document available throughout the update and write it
+    // with merge so unrelated metadata fields are preserved.
+    await metadataRef.set(_metadataFor(plan), SetOptions(merge: true));
 
     for (var start = 0; start < operations.length; start += _batchLimit) {
       final batch = _db.batch();
@@ -187,7 +190,34 @@ class FirestoreLessonRepository implements LessonRepository {
       await batch.commit();
     }
 
-    await metadataRef.set(_metadataFor(plan));
+  }
+
+  bool _sameStepData(Map<String, dynamic> existing, Map<String, dynamic> next) {
+    if (existing.length != next.length) return false;
+    for (final entry in next.entries) {
+      if (!_sameFirestoreValue(existing[entry.key], entry.value)) return false;
+    }
+    return true;
+  }
+
+  bool _sameFirestoreValue(Object? a, Object? b) {
+    if (a is List && b is List) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if (!_sameFirestoreValue(a[i], b[i])) return false;
+      }
+      return true;
+    }
+    if (a is Map && b is Map) {
+      if (a.length != b.length) return false;
+      for (final key in b.keys) {
+        if (!a.containsKey(key) || !_sameFirestoreValue(a[key], b[key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return a == b;
   }
 
   @override

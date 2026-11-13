@@ -6,9 +6,9 @@ import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/core/services/progress_service.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_screen.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_editor_screen.dart';
-import 'package:superthai/ui/screens/main_container.dart';
+import 'package:superthai/ui/screens/navigation/main_container.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
-import 'package:superthai/ui/widgets/lesson_map_widgets.dart';
+import 'package:superthai/ui/widgets/lesson/lesson_map_widgets.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 
 class LessonSelectionScreen extends StatefulWidget {
@@ -173,6 +173,39 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
   bool _hasScrolled = false;
   List<LessonPlan>? _cachedPlans;
   String? _lastActiveCategory;
+  List<LessonPlan>? _preparedPlansSource;
+  String? _preparedSelectedCategory;
+  Map<String, List<LessonPlan>> _categoryMap = {};
+  List<String> _categoryList = const [];
+  List<LessonPlan> _filteredPlans = const [];
+  String? _activeCategory;
+
+  void _preparePlans(List<LessonPlan> plans, String? selectedCategory) {
+    if (identical(_preparedPlansSource, plans) &&
+        _preparedSelectedCategory == selectedCategory) {
+      return;
+    }
+
+    final categoryMap = <String, List<LessonPlan>>{};
+    for (final plan in plans) {
+      if (plan.category.isNotEmpty) {
+        categoryMap.putIfAbsent(plan.category, () => <LessonPlan>[]).add(plan);
+      }
+    }
+    final categoryList = categoryMap.keys.toList(growable: false);
+    final activeCategory =
+        selectedCategory ??
+        (categoryList.isNotEmpty ? categoryList.first : null);
+
+    _preparedPlansSource = plans;
+    _preparedSelectedCategory = selectedCategory;
+    _categoryMap = categoryMap;
+    _categoryList = categoryList;
+    _activeCategory = activeCategory;
+    _filteredPlans = activeCategory == null || activeCategory == 'ALL'
+        ? plans
+        : categoryMap[activeCategory] ?? const <LessonPlan>[];
+  }
 
   @override
   void initState() {
@@ -221,20 +254,8 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
 
         final allPlans = snapshot.data ?? _cachedPlans;
         final plansToDisplay = allPlans ?? [];
-
-        // Group plans by category to determine active category and title
-        final Map<String, List<LessonPlan>> categoryMap = {};
-        for (var plan in plansToDisplay) {
-          if (plan.category.isNotEmpty) {
-            categoryMap.putIfAbsent(plan.category, () => []).add(plan);
-          }
-        }
-        final categoryList = categoryMap.keys.toList();
-
-        String? activeCategory = selectedCategory;
-        if (activeCategory == null && categoryList.isNotEmpty) {
-          activeCategory = categoryList.first;
-        }
+        _preparePlans(plansToDisplay, selectedCategory);
+        final activeCategory = _activeCategory;
 
         if (_lastActiveCategory != activeCategory) {
           _lastActiveCategory = activeCategory;
@@ -246,21 +267,12 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
           });
         }
 
-        final List<LessonPlan> filteredPlans;
-        if (activeCategory == 'ALL' || activeCategory == null) {
-          filteredPlans = plansToDisplay;
-        } else {
-          filteredPlans = categoryMap[activeCategory] ?? [];
-        }
-
         String appBarTitle = "Lesson";
         if (activeCategory != null && activeCategory != 'ALL') {
-          final firstPlan = categoryMap[activeCategory]?.first;
+          final firstPlan = _categoryMap[activeCategory]?.first;
           final emoji = firstPlan?.categoryEmoji.isNotEmpty == true
               ? firstPlan!.categoryEmoji
-              : (firstPlan?.emoji.isNotEmpty == true
-                  ? firstPlan!.emoji
-                  : '📚');
+              : (firstPlan?.emoji.isNotEmpty == true ? firstPlan!.emoji : '📚');
           appBarTitle = "$emoji $activeCategory";
         } else if (activeCategory == 'ALL') {
           appBarTitle = "📚 All Lessons";
@@ -316,13 +328,13 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
                 builder: (context, progress, _) {
                   return _LessonMap(
                     key: ValueKey(activeCategory ?? 'ALL'),
-                    plans: filteredPlans,
+                    plans: _filteredPlans,
                     progress: progress,
                     onReturn: _refreshCategories,
                     scrollController: _scrollController,
                     hasScrolled: _hasScrolled,
                     onScrolled: (val) => _hasScrolled = val,
-                    categoryList: categoryList,
+                    categoryList: _categoryList,
                     activeCategory: activeCategory,
                     onSelectCategory: (newCat) {
                       MainContainer.of(context)?.selectCategory(newCat);
@@ -428,8 +440,7 @@ class _LessonMapState extends State<_LessonMap> {
     if (widget.plans.isEmpty || widget.hasScrolled) return;
 
     if (widget.scrollController.hasClients) {
-      final double maxScroll =
-          widget.scrollController.position.maxScrollExtent;
+      final double maxScroll = widget.scrollController.position.maxScrollExtent;
       if (maxScroll <= 0) {
         widget.scrollController.jumpTo(0.0);
         widget.progress.saveScrollOffset(0.0);
@@ -579,7 +590,8 @@ class _LessonMapState extends State<_LessonMap> {
     if (currentIndex == -1) return false;
 
     final now = DateTime.now();
-    final bool canSwitch = _lastCategorySwitchTime == null ||
+    final bool canSwitch =
+        _lastCategorySwitchTime == null ||
         now.difference(_lastCategorySwitchTime!).inMilliseconds > 800;
 
     if (!canSwitch) return false;
@@ -639,9 +651,7 @@ class _LessonMapState extends State<_LessonMap> {
               parent: BouncingScrollPhysics(),
             ),
             child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: constraints.maxHeight,
-              ),
+              constraints: BoxConstraints(minHeight: constraints.maxHeight),
               child: Container(
                 color: Colors.transparent,
                 padding: const EdgeInsets.only(
@@ -660,7 +670,9 @@ class _LessonMapState extends State<_LessonMap> {
                       )
                     : Column(
                         mainAxisSize: MainAxisSize.min,
-                        children: List.generate(categoryNames.length, (categoryIndex) {
+                        children: List.generate(categoryNames.length, (
+                          categoryIndex,
+                        ) {
                           final categoryName = categoryNames[categoryIndex];
                           final categoryPlans = plansByCategory[categoryName]!;
 
@@ -669,16 +681,28 @@ class _LessonMapState extends State<_LessonMap> {
                               return LayoutBuilder(
                                 builder: (context, constraints) {
                                   final double width = constraints.maxWidth;
-                                  const List<double> alignments = [0.0, -0.5, 0.0, 0.5];
+                                  const List<double> alignments = [
+                                    0.0,
+                                    -0.5,
+                                    0.0,
+                                    0.5,
+                                  ];
                                   const double nodeWidth = 80.0;
                                   const double rowHeight = 120.0;
                                   final List<Offset> points = [];
 
-                                  for (int i = 0; i < categoryPlans.length; i++) {
-                                    final align = alignments[i % alignments.length];
+                                  for (
+                                    int i = 0;
+                                    i < categoryPlans.length;
+                                    i++
+                                  ) {
+                                    final align =
+                                        alignments[i % alignments.length];
                                     final double x =
-                                        (width / 2) + (align * (width - nodeWidth) / 2);
-                                    final double y = (i * rowHeight) + (rowHeight / 2);
+                                        (width / 2) +
+                                        (align * (width - nodeWidth) / 2);
+                                    final double y =
+                                        (i * rowHeight) + (rowHeight / 2);
                                     points.add(Offset(x, y));
                                   }
 
@@ -690,7 +714,9 @@ class _LessonMapState extends State<_LessonMap> {
                                         child: Stack(
                                           clipBehavior: Clip.none,
                                           children: [
-                                            ...List.generate(categoryPlans.length, (index) {
+                                            ...List.generate(categoryPlans.length, (
+                                              index,
+                                            ) {
                                               if (index % 2 == 0) {
                                                 return const SizedBox.shrink();
                                               }
@@ -703,8 +729,11 @@ class _LessonMapState extends State<_LessonMap> {
                                                   _thaiConsonants[consonantIndex %
                                                       _thaiConsonants.length];
                                               final nodeAlign =
-                                                  alignments[index % alignments.length];
-                                              final charAlign = nodeAlign < 0 ? 0.8 : -0.8;
+                                                  alignments[index %
+                                                      alignments.length];
+                                              final charAlign = nodeAlign < 0
+                                                  ? 0.8
+                                                  : -0.8;
 
                                               return Positioned(
                                                 top: (index * rowHeight) - 20,
@@ -712,17 +741,23 @@ class _LessonMapState extends State<_LessonMap> {
                                                 right: 0,
                                                 child: IgnorePointer(
                                                   child: Align(
-                                                    alignment: Alignment(charAlign, 0),
+                                                    alignment: Alignment(
+                                                      charAlign,
+                                                      0,
+                                                    ),
                                                     child: Text(
                                                       char,
                                                       style: TextStyle(
                                                         fontSize: 110,
-                                                        fontWeight: FontWeight.bold,
+                                                        fontWeight:
+                                                            FontWeight.bold,
                                                         color: theme
                                                             .textTheme
                                                             .bodyLarge
                                                             ?.color
-                                                            ?.withValues(alpha: 0.08),
+                                                            ?.withValues(
+                                                              alpha: 0.08,
+                                                            ),
                                                       ),
                                                     ),
                                                   ),
@@ -736,13 +771,15 @@ class _LessonMapState extends State<_LessonMap> {
                                                   child: CustomPaint(
                                                     size: Size(
                                                       width,
-                                                      categoryPlans.length * rowHeight,
+                                                      categoryPlans.length *
+                                                          rowHeight,
                                                     ),
                                                     painter: MapPathPainter(
                                                       points: points,
-                                                      color: Colors.blueGrey.withValues(
-                                                        alpha: 0.15,
-                                                      ),
+                                                      color: Colors.blueGrey
+                                                          .withValues(
+                                                            alpha: 0.15,
+                                                          ),
                                                     ),
                                                   ),
                                                 ),
@@ -751,15 +788,18 @@ class _LessonMapState extends State<_LessonMap> {
                                             SizedBox(
                                               width: width,
                                               child: Column(
-                                                children: List.generate(
-                                                    categoryPlans.length, (index) {
-                                                  final plan = categoryPlans[index];
-                                                  final completed = progress.getCompleted(
-                                                    plan.id,
-                                                  );
-                                                  final total = plan.steps.length;
+                                                children: List.generate(categoryPlans.length, (
+                                                  index,
+                                                ) {
+                                                  final plan =
+                                                      categoryPlans[index];
+                                                  final completed = progress
+                                                      .getCompleted(plan.id);
+                                                  final total =
+                                                      plan.steps.length;
                                                   final align =
-                                                      alignments[index % alignments.length];
+                                                      alignments[index %
+                                                          alignments.length];
 
                                                   return SizedBox(
                                                     height: rowHeight,
@@ -770,17 +810,29 @@ class _LessonMapState extends State<_LessonMap> {
                                                       total: total,
                                                       alignment: align,
                                                       onLongPress: () =>
-                                                          _showOptions(context, plan),
+                                                          _showOptions(
+                                                            context,
+                                                            plan,
+                                                          ),
                                                       onTap: () async {
-                                                        if (progress.canTryLesson(plan.id)) {
-                                                          progress.updateLastLesson(plan.id);
+                                                        if (progress
+                                                            .canTryLesson(
+                                                              plan.id,
+                                                            )) {
+                                                          progress
+                                                              .updateLastLesson(
+                                                                plan.id,
+                                                              );
                                                           await Navigator.push(
                                                             context,
                                                             MaterialPageRoute(
-                                                              builder: (_) => LessonScreen(
-                                                                category: plan.category,
-                                                                lessonId: plan.id,
-                                                              ),
+                                                              builder: (_) =>
+                                                                  LessonScreen(
+                                                                    category: plan
+                                                                        .category,
+                                                                    lessonId:
+                                                                        plan.id,
+                                                                  ),
                                                             ),
                                                           );
                                                           widget.onReturn();

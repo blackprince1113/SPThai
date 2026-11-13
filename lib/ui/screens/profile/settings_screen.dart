@@ -6,9 +6,9 @@ import 'package:superthai/core/services/auth_service.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 
-import 'package:superthai/ui/screens/login_screen.dart';
-import 'package:superthai/ui/screens/edit_profile_screen.dart';
-import 'package:superthai/ui/screens/manage_screen.dart';
+import 'package:superthai/ui/screens/auth/login_screen.dart';
+import 'package:superthai/ui/screens/profile/edit_profile_screen.dart';
+import 'package:superthai/ui/screens/admin/manage_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});

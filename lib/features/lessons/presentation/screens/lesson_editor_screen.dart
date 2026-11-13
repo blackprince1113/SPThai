@@ -20,7 +20,7 @@ import 'package:superthai/features/lessons/presentation/widgets/editor/lesson_re
 import 'package:superthai/features/lessons/presentation/widgets/editor/lesson_settings_sheet.dart';
 import 'package:superthai/features/lessons/presentation/widgets/editor/question_type_picker_sheet.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_details_screen.dart';
-import 'package:superthai/ui/screens/main_container.dart';
+import 'package:superthai/ui/screens/navigation/main_container.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:uuid/uuid.dart';
@@ -39,6 +39,7 @@ class _CreateScreenState extends State<CreateScreen> {
   String _categoryEmoji = '🎯';
   String _lessonEmoji = '📚';
   String? _existingId;
+  bool _isLoading = false;
 
   List<LessonStepData> _lessonSteps = [
     LessonStepData(
@@ -58,14 +59,42 @@ class _CreateScreenState extends State<CreateScreen> {
     _populateExistingPlanData();
   }
 
-  void _populateExistingPlanData() {
+  Future<void> _populateExistingPlanData() async {
     if (widget.existingPlan != null) {
       _existingId = widget.existingPlan!.id;
       _lessonTitle = widget.existingPlan!.title;
       _lessonCategory = widget.existingPlan!.category;
       _categoryEmoji = widget.existingPlan!.categoryEmoji;
       _lessonEmoji = widget.existingPlan!.emoji;
-      _lessonSteps = List.from(widget.existingPlan!.steps);
+
+      final needsFetch = widget.existingPlan!.steps.isEmpty ||
+          widget.existingPlan!.steps.any((s) => s.id.startsWith('placeholder_'));
+
+      if (needsFetch) {
+        setState(() => _isLoading = true);
+        final fullPlan =
+            await DataService.instance.getLessonPlanById(_existingId!);
+        if (!mounted) return;
+        if (fullPlan != null && fullPlan.steps.isNotEmpty) {
+          setState(() {
+            _lessonTitle = fullPlan.title;
+            _lessonCategory = fullPlan.category;
+            _categoryEmoji = fullPlan.categoryEmoji;
+            _lessonEmoji = fullPlan.emoji;
+            _lessonSteps = List.from(fullPlan.steps);
+            _isLoading = false;
+          });
+        } else {
+          setState(() {
+            _lessonSteps = List.from(widget.existingPlan!.steps);
+            _isLoading = false;
+          });
+        }
+      } else {
+        setState(() {
+          _lessonSteps = List.from(widget.existingPlan!.steps);
+        });
+      }
     }
   }
 
@@ -81,10 +110,10 @@ class _CreateScreenState extends State<CreateScreen> {
   void didUpdateWidget(CreateScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.existingPlan != oldWidget.existingPlan) {
-      setState(() {
-        if (widget.existingPlan != null) {
-          _populateExistingPlanData();
-        } else {
+      if (widget.existingPlan != null) {
+        _populateExistingPlanData();
+      } else {
+        setState(() {
           _existingId = null;
           _lessonTitle = 'My New Lesson';
           _lessonCategory = 'General';
@@ -98,12 +127,12 @@ class _CreateScreenState extends State<CreateScreen> {
               english: '',
             ),
           ];
-        }
-        _activeStepIndex = 0;
-        if (_pageController.hasClients) {
-          _pageController.jumpToPage(0);
-        }
-      });
+          _activeStepIndex = 0;
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(0);
+          }
+        });
+      }
     }
   }
 
@@ -412,6 +441,21 @@ class _CreateScreenState extends State<CreateScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: const ThaiAppBar(
+          title: "Loading Lesson...",
+          showProfile: false,
+          centerTitle: true,
+        ),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     final activeStep = _lessonSteps[_activeStepIndex];
 
     return Scaffold(

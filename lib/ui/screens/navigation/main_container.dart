@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_selection_screen.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_editor_screen.dart';
-import 'package:superthai/ui/screens/favorites_screen.dart';
-import 'package:superthai/ui/screens/discover_screen.dart';
-import 'package:superthai/ui/screens/settings_screen.dart';
-import 'package:superthai/ui/widgets/app_drawer.dart';
+import 'package:superthai/ui/screens/profile/favorites_screen.dart';
+import 'package:superthai/ui/screens/discover/discover_screen.dart';
+import 'package:superthai/ui/screens/profile/settings_screen.dart';
+import 'package:superthai/ui/widgets/common/app_drawer.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/core/services/auth_service.dart';
 
