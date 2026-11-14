@@ -237,9 +237,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
 
   Widget _buildDiscoverCard(DiscoverItem item, bool isAdmin) {
     final theme = Theme.of(context);
-    // The image is displayed at 120 logical pixels; decode it near the
-    // physical size required by this device instead of keeping a full-size
-    // source image in the image cache.
     final imageCacheSize = (120 * MediaQuery.devicePixelRatioOf(context))
         .round();
     return Container(

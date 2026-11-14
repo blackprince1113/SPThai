@@ -16,10 +16,6 @@ class FirestoreLessonRepository implements LessonRepository {
   @override
   Future<List<LessonPlan>> getAll() async {
     try {
-      // The lesson map and admin ordering screen both need the complete list
-      // to build category groups and preserve drag ordering. Fetch metadata in
-      // one query; lesson steps remain in their subcollections and are loaded
-      // only when a lesson is opened.
       final snapshot = await _plans.get();
       final plans = snapshot.docs.map(_parsePlanFromMetadata).toList();
       return plans..sort((a, b) => a.index.compareTo(b.index));
@@ -79,7 +75,6 @@ class FirestoreLessonRepository implements LessonRepository {
       }
     } catch (_) {}
 
-    // Fallback: if subcollection 'steps' is empty, check if steps are array in metadata
     if (steps.isEmpty && metadata['steps'] is List) {
       steps = (metadata['steps'] as List)
           .map((s) => LessonStepData.fromMap(Map<String, dynamic>.from(s)))
@@ -111,7 +106,6 @@ class FirestoreLessonRepository implements LessonRepository {
           .map((s) => LessonStepData.fromMap(Map<String, dynamic>.from(s)))
           .toList();
     } else if (stepCount > 0) {
-      // Dummy step list of length stepCount so plan.steps.length returns correct step count
       steps = List.generate(
         stepCount,
         (i) => LessonStepData(
@@ -179,8 +173,6 @@ class FirestoreLessonRepository implements LessonRepository {
       operations.add((batch) => batch.delete(staleStep.reference));
     }
 
-    // Keep the parent document available throughout the update and write it
-    // with merge so unrelated metadata fields are preserved.
     await metadataRef.set(_metadataFor(plan), SetOptions(merge: true));
 
     for (var start = 0; start < operations.length; start += _batchLimit) {

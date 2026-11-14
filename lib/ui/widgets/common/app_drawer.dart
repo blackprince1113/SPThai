@@ -128,10 +128,8 @@ class _AppDrawerState extends State<AppDrawer> {
       backgroundColor: theme.scaffoldBackgroundColor,
       child: Column(
         children: [
-          // Quick Search Header
           _buildQuickSearchHeader(context),
 
-          // Search Results or Categories List
           Expanded(
             child: FutureBuilder<List<LessonPlan>>(
               future: _plansFuture,
@@ -163,7 +161,6 @@ class _AppDrawerState extends State<AppDrawer> {
                   );
                 }
 
-                // --- WHEN SEARCHING ---
                 if (_searchQuery.trim().isNotEmpty) {
                   if (_indexedQuery != _searchQuery) {
                     _indexedQuery = _searchQuery;
@@ -224,7 +221,6 @@ class _AppDrawerState extends State<AppDrawer> {
                       horizontal: 8,
                     ),
                     children: [
-                      // Header: SEARCH RESULTS
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                         child: Row(
@@ -261,7 +257,6 @@ class _AppDrawerState extends State<AppDrawer> {
                         ),
                       ),
 
-                      // Matching Categories shortcuts
                       if (matchingCatNames.isNotEmpty) ...[
                         ...matchingCatNames.map((catName) {
                           final catPlans = categoryMap[catName]!;
@@ -282,7 +277,6 @@ class _AppDrawerState extends State<AppDrawer> {
                         const Divider(height: 16),
                       ],
 
-                      // Matched Lessons shortcuts
                       ...results.map((res) {
                         return _buildSearchResultTile(
                           context,
@@ -294,14 +288,12 @@ class _AppDrawerState extends State<AppDrawer> {
                   );
                 }
 
-                // --- WHEN NOT SEARCHING (SHOW CATEGORIES) ---
                 return ListView(
                   padding: const EdgeInsets.symmetric(
                     vertical: 8,
                     horizontal: 8,
                   ),
                   children: [
-                    // Section Header: CATEGORIES
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
                       child: Row(
@@ -377,7 +369,6 @@ class _AppDrawerState extends State<AppDrawer> {
             ),
           ),
 
-          // Footer
           const Divider(height: 1),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -435,7 +426,6 @@ class _AppDrawerState extends State<AppDrawer> {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header Title
           Text(
             'ทางลัดค้นหาบทเรียน',
             style: TextStyle(
@@ -449,7 +439,6 @@ class _AppDrawerState extends State<AppDrawer> {
           ),
           const SizedBox(height: 12),
 
-          // Search Bar Container
           Container(
             height: 46,
             decoration: BoxDecoration(

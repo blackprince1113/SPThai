@@ -187,7 +187,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
         .replaceAll(RegExp(r'[^a-z0-9_]'), '');
     final filename = '${safeCategory}.xlsx';
 
-    // Show Confirmation Dialog
     final confirm = await ThaiDialogs.showConfirmDialog(
       context,
       title: "Confirm Export",
@@ -198,7 +197,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
     );
     if (!confirm) return;
 
-    // Generate list text
     final buffer = StringBuffer();
     buffer.writeln('${_selectedCategory!}\t');
     for (var item in _targetItems) {
@@ -207,10 +205,8 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
 
     final content = buffer.toString();
 
-    // Copy to clipboard
     await Clipboard.setData(ClipboardData(text: content));
 
-    // Save to Downloads folder
     String savedPathMessage = '';
     try {
       Directory? downloadDir;
@@ -267,7 +263,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
       return;
     }
 
-    // Show Confirmation Dialog
     final confirm = await ThaiDialogs.showConfirmDialog(
       context,
       title: "Confirm Import",
@@ -360,7 +355,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        // Refresh items
         if (_selectedCategory != null) {
           _loadCategoryItems(_selectedCategory!);
         }
@@ -404,7 +398,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Category selection card
               Card(
                 elevation: 0,
                 color: theme.cardColor,
@@ -476,7 +469,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
 
               const SizedBox(height: 20),
 
-              // Link input section
               const Text(
                 "Enter the link of the first image here",
                 style: TextStyle(
@@ -534,7 +526,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
 
               const SizedBox(height: 24),
 
-              // Progress Indicator during import
               if (_isImporting) ...[
                 Card(
                   elevation: 0,
@@ -584,7 +575,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
                 const SizedBox(height: 20),
               ],
 
-              // Import Action Button
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -611,7 +601,6 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
 
               const SizedBox(height: 24),
 
-              // Items preview list
               if (_selectedCategory != null) ...[
                 Row(
                   children: [

@@ -29,7 +29,6 @@ class DataService extends ChangeNotifier {
   static const String newsCollection = 'discover';
   static const String _lessonCacheKey = 'cached_lesson_plans_v2';
   static const Duration _backgroundSyncInterval = Duration(minutes: 5);
-  // Keep the number of simultaneous lesson document + steps reads bounded.
   static const int _categoryLessonLoadConcurrency = 4;
 
   DataService._internal() {
@@ -335,8 +334,6 @@ class DataService extends ChangeNotifier {
         hasMore: snapshot.docs.length == limit,
       );
     } on FirebaseException catch (error) {
-      // The composite index may not have been deployed yet. Keep Discover
-      // usable while falling back to a single collection read and local sort.
       if (error.code != 'failed-precondition') rethrow;
       _discoverCompositeIndexUnavailable = true;
       return _getDiscoverPageFromFallback(startAfter: startAfter, limit: limit);

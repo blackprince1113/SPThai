@@ -92,8 +92,6 @@ class FourChoiceController extends ChangeNotifier {
     final allWords = await DataService.instance.getWordsByCategory(category);
     if (_disposed || generation != _generation) return;
 
-    // Reservoir sampling selects up to three distractors without copying and
-    // shuffling the full category list for every question.
     final distractors = <WordEntry>[];
     var eligibleCount = 0;
     for (final candidate in allWords) {
