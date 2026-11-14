@@ -6,12 +6,14 @@ class LessonReorderSheet extends StatefulWidget {
   final List<LessonStepData> steps;
   final int activeStepIndex;
   final Function(int oldIndex, int newIndex) onReorder;
+  final ValueChanged<int> onSelectStep;
 
   const LessonReorderSheet({
     super.key,
     required this.steps,
     required this.activeStepIndex,
     required this.onReorder,
+    required this.onSelectStep,
   });
 
   static Future<void> show(
@@ -19,6 +21,7 @@ class LessonReorderSheet extends StatefulWidget {
     required List<LessonStepData> steps,
     required int activeStepIndex,
     required Function(int oldIndex, int newIndex) onReorder,
+    required ValueChanged<int> onSelectStep,
   }) {
     return showModalBottomSheet(
       context: context,
@@ -28,6 +31,7 @@ class LessonReorderSheet extends StatefulWidget {
         steps: steps,
         activeStepIndex: activeStepIndex,
         onReorder: onReorder,
+        onSelectStep: onSelectStep,
       ),
     );
   }
@@ -65,6 +69,7 @@ class _LessonReorderSheetState extends State<LessonReorderSheet> {
           ),
           Expanded(
             child: ReorderableListView.builder(
+              buildDefaultDragHandles: false,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               proxyDecorator: (child, index, animation) {
                 return AnimatedBuilder(
@@ -100,6 +105,10 @@ class _LessonReorderSheetState extends State<LessonReorderSheet> {
                     ],
                   ),
                   child: ListTile(
+                    onTap: () {
+                      widget.onSelectStep(index);
+                      Navigator.of(context).pop();
+                    },
                     contentPadding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 4,
@@ -129,7 +138,13 @@ class _LessonReorderSheetState extends State<LessonReorderSheet> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    trailing: const Icon(Icons.drag_handle_rounded),
+                    trailing: ReorderableDragStartListener(
+                      index: index,
+                      child: const Padding(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(Icons.drag_handle_rounded),
+                      ),
+                    ),
                   ),
                 );
               },

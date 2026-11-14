@@ -85,30 +85,7 @@ class _SentenceExampleTakePageState extends State<SentenceExampleTakePage> {
               final sentence = entry.value;
               return _buildSentenceItem(index, sentence);
             }),
-            const SizedBox(height: 48),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  elevation: 8,
-                  shadowColor: AppTheme.primaryColor.withValues(alpha: 0.4),
-                ),
-                onPressed: () {
-                  StepResultNotification(true).dispatch(context);
-                },
-                child: const Text(
-                  "CONTINUE",
-                  style: TextStyle(fontSize: 18, letterSpacing: 1.2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
           ],
         ),
       ),

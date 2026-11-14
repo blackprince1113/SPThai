@@ -31,9 +31,7 @@ class ManageScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (_) => const CreateScreen(),
-                        ),
+                        MaterialPageRoute(builder: (_) => const CreateScreen()),
                       );
                     },
                   ),

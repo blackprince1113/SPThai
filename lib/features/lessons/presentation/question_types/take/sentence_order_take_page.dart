@@ -56,79 +56,83 @@ class _SentenceOrderTakePageState extends State<SentenceOrderTakePage> {
         Widget body = SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Column(
-              children: [
-                const SizedBox(height: 24),
-                ThaiLessonProgress(
-                  currentIndex: widget.currentIndex,
-                  totalSteps: widget.totalSteps,
-                ),
-                const SizedBox(height: 36),
-                ThaiSectionLabel(
-                  label: "ARRANGE THE SENTENCE",
-                  color: AppTheme.primaryColor,
-                  fontSize: 12,
-                  padding: const EdgeInsets.only(bottom: 24),
-                ),
-                Text(
-                  widget.word.english,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: AppTheme.getResponsiveFontSize(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    ThaiLessonProgress(
+                      currentIndex: widget.currentIndex,
+                      totalSteps: widget.totalSteps,
+                    ),
+                    const SizedBox(height: 28),
+                    ThaiSectionLabel(
+                      label: "ARRANGE THE SENTENCE",
+                      color: AppTheme.primaryColor,
+                      fontSize: 12,
+                      padding: const EdgeInsets.only(bottom: 18),
+                    ),
+                    Text(
                       widget.word.english,
-                      24,
-                    ),
-                    fontWeight: FontWeight.bold,
-                    color: theme.textTheme.titleLarge?.color,
-                  ),
-                ),
-                const SizedBox(height: 40),
-                ThaiInputContainer(
-                  padding: const EdgeInsets.all(16),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 12,
-                    children: _controller.selectedTokens
-                        .asMap()
-                        .entries
-                        .map((e) => _buildSelectedToken(e.value, e.key))
-                        .toList(),
-                  ),
-                ),
-                const SizedBox(height: 40),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 16,
-                  alignment: WrapAlignment.center,
-                  children: _controller.availableTokens
-                      .map((token) => _buildAvailableToken(token))
-                      .toList(),
-                ),
-                const SizedBox(height: 40),
-                if (!_controller.answered)
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _controller.selectedTokens.isEmpty
-                            ? Colors.grey.shade300
-                            : AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 18),
-                        elevation: 0,
-                      ),
-                      onPressed: _controller.selectedTokens.isEmpty
-                          ? null
-                          : () => _controller.checkAnswer(),
-                      child: const Text(
-                        "CHECK ANSWER",
-                        style: TextStyle(letterSpacing: 1.2),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: AppTheme.getResponsiveFontSize(
+                          widget.word.english,
+                          24,
+                        ),
+                        fontWeight: FontWeight.bold,
+                        color: theme.textTheme.titleLarge?.color,
                       ),
                     ),
-                  )
-                else
-                  _buildFeedbackArea(),
-              ],
+                    const SizedBox(height: 28),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 10,
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: _controller.selectedTokens
+                          .asMap()
+                          .entries
+                          .map((e) => _buildSelectedToken(e.value, e.key))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 24),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 12,
+                      alignment: WrapAlignment.center,
+                      children: _controller.availableTokens
+                          .map((token) => _buildAvailableToken(token))
+                          .toList(),
+                    ),
+                    const SizedBox(height: 28),
+                    if (!_controller.answered)
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _controller.selectedTokens.isEmpty
+                                ? Colors.grey.shade300
+                                : AppTheme.primaryColor,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 18),
+                            elevation: 0,
+                          ),
+                          onPressed: _controller.selectedTokens.isEmpty
+                              ? null
+                              : () => _controller.checkAnswer(),
+                          child: const Text(
+                            "CHECK ANSWER",
+                            style: TextStyle(letterSpacing: 1.2),
+                          ),
+                        ),
+                      )
+                    else
+                      _buildFeedbackArea(),
+                  ],
+                ),
+              ),
             ),
           ),
         );
@@ -149,7 +153,7 @@ class _SentenceOrderTakePageState extends State<SentenceOrderTakePage> {
     return GestureDetector(
       onTap: () => _controller.deselectToken(index),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: AppTheme.primaryColor.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(12),
@@ -158,7 +162,7 @@ class _SentenceOrderTakePageState extends State<SentenceOrderTakePage> {
         child: Text(
           text,
           style: TextStyle(
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: FontWeight.bold,
             color: AppTheme.primaryColor,
           ),
@@ -172,7 +176,7 @@ class _SentenceOrderTakePageState extends State<SentenceOrderTakePage> {
     return GestureDetector(
       onTap: () => _controller.selectToken(index),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(15),
@@ -189,7 +193,11 @@ class _SentenceOrderTakePageState extends State<SentenceOrderTakePage> {
         ),
         child: Text(
           text,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: AppTheme.getResponsiveFontSize(text, 17),
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ),
     );

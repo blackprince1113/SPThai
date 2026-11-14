@@ -63,14 +63,13 @@ class SentenceOrderController extends ChangeNotifier {
   void checkAnswer() {
     if (_answered) return;
 
-    String currentSentence = selectedTokens.join('');
-    String targetSentence = correctAnswer ?? word.thai;
-
-    targetSentence = targetSentence.replaceAll(' ', '').toLowerCase();
-    currentSentence = currentSentence.replaceAll(' ', '').toLowerCase();
+    final currentSentence = selectedTokens.join('');
+    final targetSentence = correctAnswer ?? word.thai;
 
     _answered = true;
-    _answerCorrect = currentSentence == targetSentence;
+    _answerCorrect =
+        currentSentence.replaceAll(' ', '').toLowerCase() ==
+        targetSentence.replaceAll(' ', '').toLowerCase();
 
     if (_answerCorrect) {
       SoundService.instance.playCorrect();

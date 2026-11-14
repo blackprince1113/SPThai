@@ -105,62 +105,51 @@ class _SpeakingTakePageState extends State<SpeakingTakePage> {
           fontSize: 12,
           padding: const EdgeInsets.only(bottom: 16),
         ),
-          const SizedBox(height: 16),
-          if (widget.word.imageUrl.isNotEmpty) ...[
-            ThaiIllustration(
-              source: widget.word.imageUrl,
-              height: 100,
-              iconSize: 50,
+        const SizedBox(height: 16),
+        Text(
+          widget.word.thai,
+          style: TextStyle(
+            fontSize: AppTheme.getResponsiveFontSize(widget.word.thai, 32),
+            fontWeight: FontWeight.bold,
+            color: theme.textTheme.headlineLarge?.color ?? AppTheme.textColor,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 4),
+        Text(
+          widget.word.phonetic,
+          style: TextStyle(
+            fontSize: AppTheme.getResponsiveFontSize(widget.word.phonetic, 18),
+            color: theme.disabledColor,
+            fontStyle: FontStyle.italic,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 24),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            ThaiSpeakIconButton(
+              icon: Icons.volume_up_rounded,
+              label: "LISTEN",
+              color: AppTheme.primaryColor,
+              onTap: _controller.speakThaiNormal,
+              padding: 16,
+              iconSize: 30,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(width: 48),
+            ThaiSpeakIconButton(
+              icon: Icons.slow_motion_video_rounded,
+              label: "SLOW",
+              color: Colors.pink.shade300,
+              onTap: _controller.speakThaiSlow,
+              padding: 16,
+              iconSize: 30,
+            ),
           ],
-          Text(
-            widget.word.thai,
-            style: TextStyle(
-              fontSize: AppTheme.getResponsiveFontSize(widget.word.thai, 32),
-              fontWeight: FontWeight.bold,
-              color: theme.textTheme.headlineLarge?.color ?? AppTheme.textColor,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            widget.word.phonetic,
-            style: TextStyle(
-              fontSize: AppTheme.getResponsiveFontSize(
-                widget.word.phonetic,
-                18,
-              ),
-              color: theme.disabledColor,
-              fontStyle: FontStyle.italic,
-            ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ThaiSpeakIconButton(
-                icon: Icons.volume_up_rounded,
-                label: "LISTEN",
-                color: AppTheme.primaryColor,
-                onTap: _controller.speakThaiNormal,
-                padding: 16,
-                iconSize: 30,
-              ),
-              const SizedBox(width: 48),
-              ThaiSpeakIconButton(
-                icon: Icons.slow_motion_video_rounded,
-                label: "SLOW",
-                color: Colors.pink.shade300,
-                onTap: _controller.speakThaiSlow,
-                padding: 16,
-                iconSize: 30,
-              ),
-            ],
-          ),
-        ],
-      );
+        ),
+      ],
+    );
   }
 
   Widget _buildRecognizedTextArea() {

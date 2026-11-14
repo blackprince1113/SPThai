@@ -67,13 +67,17 @@ class _CreateScreenState extends State<CreateScreen> {
       _categoryEmoji = widget.existingPlan!.categoryEmoji;
       _lessonEmoji = widget.existingPlan!.emoji;
 
-      final needsFetch = widget.existingPlan!.steps.isEmpty ||
-          widget.existingPlan!.steps.any((s) => s.id.startsWith('placeholder_'));
+      final needsFetch =
+          widget.existingPlan!.steps.isEmpty ||
+          widget.existingPlan!.steps.any(
+            (s) => s.id.startsWith('placeholder_'),
+          );
 
       if (needsFetch) {
         setState(() => _isLoading = true);
-        final fullPlan =
-            await DataService.instance.getLessonPlanById(_existingId!);
+        final fullPlan = await DataService.instance.getLessonPlanById(
+          _existingId!,
+        );
         if (!mounted) return;
         if (fullPlan != null && fullPlan.steps.isNotEmpty) {
           setState(() {
@@ -224,6 +228,12 @@ class _CreateScreenState extends State<CreateScreen> {
       context,
       steps: _lessonSteps,
       activeStepIndex: _activeStepIndex,
+      onSelectStep: (index) {
+        setState(() {
+          _activeStepIndex = index;
+        });
+        _pageController.jumpToPage(index);
+      },
       onReorder: (oldIndex, newIndex) {
         setState(() {
           final item = _lessonSteps.removeAt(oldIndex);
@@ -450,9 +460,7 @@ class _CreateScreenState extends State<CreateScreen> {
           showProfile: false,
           centerTitle: true,
         ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -591,42 +599,28 @@ class _CreateScreenState extends State<CreateScreen> {
             child: SafeArea(
               child: Row(
                 children: [
-                  Container(
-                    height: 52,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.editModeColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(26),
-                      border: Border.all(
-                        color: AppTheme.editModeColor.withValues(alpha: 0.2),
+                  InkWell(
+                    onTap: _showReorderSheet,
+                    borderRadius: BorderRadius.circular(26),
+                    child: Container(
+                      height: 52,
+                      alignment: Alignment.centerLeft,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: AppTheme.editModeColor.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(26),
+                        border: Border.all(
+                          color: AppTheme.editModeColor.withValues(alpha: 0.2),
+                        ),
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          "${_activeStepIndex + 1}/${_lessonSteps.length}",
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.editModeColor,
-                          ),
+                      child: Text(
+                        "${_activeStepIndex + 1}/${_lessonSteps.length}",
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.editModeColor,
                         ),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.tune_rounded,
-                            size: 18,
-                            color: AppTheme.editModeColor,
-                          ),
-                          onPressed: _showReorderSheet,
-                          tooltip: 'Reorder Steps',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
