@@ -41,6 +41,14 @@ class LessonReorderSheet extends StatefulWidget {
 }
 
 class _LessonReorderSheetState extends State<LessonReorderSheet> {
+  late int _activeStepIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _activeStepIndex = widget.activeStepIndex;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -61,10 +69,20 @@ class _LessonReorderSheetState extends State<LessonReorderSheet> {
             ),
           ),
           const Padding(
-            padding: EdgeInsets.all(20),
-            child: Text(
-              "Reorder Steps",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            padding: EdgeInsets.fromLTRB(20, 20, 20, 12),
+            child: Column(
+              children: [
+                Text(
+                  "Reorder or Select Step",
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 6),
+                Text(
+                  "Tap a step to select it. Drag the handle to reorder.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.grey),
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -85,17 +103,34 @@ class _LessonReorderSheetState extends State<LessonReorderSheet> {
               itemCount: widget.steps.length,
               onReorderItem: (oldIndex, newIndex) {
                 widget.onReorder(oldIndex, newIndex);
-                setState(() {});
+                setState(() {
+                  if (_activeStepIndex == oldIndex) {
+                    _activeStepIndex = newIndex;
+                  } else if (oldIndex < _activeStepIndex &&
+                      newIndex >= _activeStepIndex) {
+                    _activeStepIndex--;
+                  } else if (oldIndex > _activeStepIndex &&
+                      newIndex <= _activeStepIndex) {
+                    _activeStepIndex++;
+                  }
+                });
               },
               itemBuilder: (context, index) {
                 final step = widget.steps[index];
                 final theme = Theme.of(context);
+                final isActive = index == _activeStepIndex;
                 return Container(
                   key: ValueKey(step.id),
                   margin: const EdgeInsets.only(bottom: 12),
                   decoration: BoxDecoration(
                     color: theme.cardColor,
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isActive
+                          ? AppTheme.primaryColor
+                          : theme.dividerColor.withValues(alpha: 0.12),
+                      width: isActive ? 1.5 : 1,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withValues(alpha: 0.05),

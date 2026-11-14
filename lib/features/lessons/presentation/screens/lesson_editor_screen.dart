@@ -51,6 +51,7 @@ class _CreateScreenState extends State<CreateScreen> {
   ];
   int _activeStepIndex = 0;
   late PageController _pageController;
+  final ScrollController _stepSelectorController = ScrollController();
 
   @override
   void initState() {
@@ -105,9 +106,27 @@ class _CreateScreenState extends State<CreateScreen> {
   @override
   void dispose() {
     _pageController.dispose();
+    _stepSelectorController.dispose();
     _lessonSteps.clear();
     DataService.instance.unloadLesson(_existingId);
     super.dispose();
+  }
+
+  void _scrollStepSelectorTo(int index) {
+    if (!_stepSelectorController.hasClients) return;
+    final position = _stepSelectorController.position;
+    const itemWidth = 44.0;
+    const itemExtent = 50.0; // Item width plus the selector's 6px gap.
+    final centeredOffset =
+        index * itemExtent - (position.viewportDimension - itemWidth) / 2;
+    final target = centeredOffset
+        .clamp(0.0, position.maxScrollExtent)
+        .toDouble();
+    _stepSelectorController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -233,6 +252,7 @@ class _CreateScreenState extends State<CreateScreen> {
           _activeStepIndex = index;
         });
         _pageController.jumpToPage(index);
+        _scrollStepSelectorTo(index);
       },
       onReorder: (oldIndex, newIndex) {
         setState(() {
@@ -249,6 +269,9 @@ class _CreateScreenState extends State<CreateScreen> {
             _activeStepIndex += 1;
           }
           _pageController.jumpToPage(_activeStepIndex);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _scrollStepSelectorTo(_activeStepIndex);
+          });
         });
       },
     );
@@ -562,6 +585,9 @@ class _CreateScreenState extends State<CreateScreen> {
                 setState(() {
                   _activeStepIndex = index;
                 });
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  _scrollStepSelectorTo(index);
+                });
               },
               itemCount: _lessonSteps.length,
               itemBuilder: (context, index) {
@@ -628,6 +654,7 @@ class _CreateScreenState extends State<CreateScreen> {
                     child: SizedBox(
                       height: 52,
                       child: ListView.separated(
+                        controller: _stepSelectorController,
                         scrollDirection: Axis.horizontal,
                         itemCount: _lessonSteps.length,
                         separatorBuilder: (context, index) =>
