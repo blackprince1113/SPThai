@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_editor_screen.dart';
 import 'package:superthai/features/lessons/presentation/screens/manage_lessons_screen.dart';
 import 'package:superthai/ui/screens/admin/add_admin_screen.dart';
+import 'package:superthai/ui/screens/admin/import_audio_list_screen.dart';
 import 'package:superthai/ui/screens/admin/import_online_image_screen.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 
@@ -70,6 +71,19 @@ class ManageScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (_) => const ImportOnlineImageScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  ThaiSettingsTile(
+                    icon: Icons.volume_up_rounded,
+                    title: "Import Audio List",
+                    color: Colors.teal,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ImportAudioListScreen(),
                         ),
                       );
                     },

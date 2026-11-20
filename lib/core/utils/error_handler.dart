@@ -35,7 +35,18 @@ class ErrorHandler {
     } else if (error is PlatformException) {
       return 'System error: ${error.message}';
     } else if (error is FirebaseException) {
-      return 'Database error. Please try again later.';
+      switch (error.code) {
+        case 'permission-denied':
+          return 'Permission denied. You do not have permission to perform this action.';
+        case 'not-found':
+          return 'The requested user or resource was not found.';
+        case 'already-exists':
+          return 'The resource already exists.';
+        case 'unavailable':
+          return 'Database service is temporarily unavailable. Please try again later.';
+        default:
+          return 'Database error (${error.code}). Please try again later.';
+      }
     } else if (error is String) {
       return error;
     }

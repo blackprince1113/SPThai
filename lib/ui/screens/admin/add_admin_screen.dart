@@ -37,20 +37,40 @@ class _AddAdminScreenState extends State<AddAdminScreen> {
           "Are you sure you want to set $email as an Admin? This will give them full access to all admin features.",
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.grey.shade300,
+                    foregroundColor: Colors.black87,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text("Cancel"),
+                ),
               ),
-            ),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text("Confirm"),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text("Confirm"),
+                ),
+              ),
+            ],
           ),
         ],
       ),

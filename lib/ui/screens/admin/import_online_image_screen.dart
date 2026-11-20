@@ -128,28 +128,25 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
     final trimmed = inputUrl.trim();
     if (trimmed.isEmpty) return '';
 
-    final regex = RegExp(r'^(.* constellation/|.*/)\d+(\.[a-zA-Z0-9]+)$');
+    final regex = RegExp(r'^(.*\/|\s*)(.*?)(\d+)(\.[a-zA-Z0-9]+)?$');
     final match = regex.firstMatch(trimmed);
 
     if (match != null) {
-      final prefix = match.group(1)!;
-      final ext = match.group(2)!;
-      return '$prefix$index$ext';
+      final prefix = (match.group(1) ?? '') + (match.group(2) ?? '');
+      final numStr = match.group(3)!;
+      final ext = match.group(4) ?? '';
+
+      final startNumber = int.tryParse(numStr);
+      if (startNumber == null) return '';
+
+      final targetNumber = startNumber + (index - 1);
+      final formattedNumber =
+          targetNumber.toString().padLeft(numStr.length, '0');
+
+      return '$prefix$formattedNumber$ext';
     }
 
-    final extRegex = RegExp(r'^(.* constellation/|.*/)[^/]+(\.[a-zA-Z0-9]+)$');
-    final extMatch = extRegex.firstMatch(trimmed);
-    if (extMatch != null) {
-      final prefix = extMatch.group(1)!;
-      final ext = extMatch.group(2)!;
-      return '$prefix$index$ext';
-    }
-
-    if (trimmed.endsWith('/')) {
-      return '$trimmed$index.png';
-    }
-
-    return '$trimmed/$index.png';
+    return '';
   }
 
   Future<void> _selectCategory() async {
@@ -245,10 +242,22 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
       return;
     }
 
-    if (_linkController.text.trim().isEmpty) {
+    final inputUrl = _linkController.text.trim();
+    if (inputUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter the link of the first image'),
+          content: Text('Please enter the image link'),
+        ),
+      );
+      return;
+    }
+
+    if (_generateImageUrl(inputUrl, 1).isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'The link must contain a number in the filename (e.g. 1.png or 20.png)',
+          ),
         ),
       );
       return;
@@ -726,7 +735,18 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
                                         ),
                                       ],
                                     ),
-                                    if (generatedUrl.isNotEmpty) ...[
+                                    if (inputUrl.isNotEmpty && generatedUrl.isEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Link must contain a number in the filename (e.g. 1.png or 20.png)',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.red,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ] else if (generatedUrl.isNotEmpty) ...[
                                       const SizedBox(height: 4),
                                       Text(
                                         generatedUrl,

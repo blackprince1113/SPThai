@@ -36,7 +36,7 @@ class ProgressService extends ChangeNotifier {
   int get streakCount => _streakCount;
   String? get lastLessonId => _lastLessonId;
   double get lastScrollOffset => _lastScrollOffset;
-  bool get isTrialLimitReached => _triedLessonIds.length >= 3;
+  bool get isTrialLimitReached => false;
   int get triedLessonsCount => _triedLessonIds.length;
 
   ProgressService._internal() {
@@ -95,9 +95,7 @@ class ProgressService extends ChangeNotifier {
   }
 
   bool canTryLesson(String lessonId) {
-    if (AuthService.instance.currentUser != null) return true;
-    if (_triedLessonIds.contains(lessonId)) return true;
-    return _triedLessonIds.length < 3;
+    return true;
   }
 
   void markStepAsCompleted(String lessonId, int stepIndex, {String? stepId}) {

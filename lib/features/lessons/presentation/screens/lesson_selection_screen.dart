@@ -9,7 +9,6 @@ import 'package:superthai/features/lessons/presentation/screens/lesson_editor_sc
 import 'package:superthai/ui/screens/navigation/main_container.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:superthai/ui/widgets/lesson/lesson_map_widgets.dart';
-import 'package:superthai/ui/theme/app_theme.dart';
 
 class LessonSelectionScreen extends StatefulWidget {
   final String? selectedCategory;
@@ -776,26 +775,17 @@ class _LessonMapState extends State<_LessonMap> {
                                         onLongPress: () =>
                                             _showOptions(context, plan),
                                         onTap: () async {
-                                          if (progress.canTryLesson(plan.id)) {
-                                            progress.updateLastLesson(plan.id);
-                                            await Navigator.push(
-                                              context,
-                                              MaterialPageRoute(
-                                                builder: (_) => LessonScreen(
-                                                  category: plan.category,
-                                                  lessonId: plan.id,
-                                                ),
+                                          progress.updateLastLesson(plan.id);
+                                          await Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => LessonScreen(
+                                                category: plan.category,
+                                                lessonId: plan.id,
                                               ),
-                                            );
-                                            widget.onReturn();
-                                          } else {
-                                            ThaiDialogs.showSignupPrompt(
-                                              context,
-                                              title: "Trial Limit Reached! 🚀",
-                                              message:
-                                                  "You've tried 3 lessons. Please create an account or login to continue learning and save your progress to the cloud!",
-                                            );
-                                          }
+                                            ),
+                                          );
+                                          widget.onReturn();
                                         },
                                       ),
                                     ),

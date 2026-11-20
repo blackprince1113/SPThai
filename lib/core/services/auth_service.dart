@@ -79,7 +79,7 @@ class AuthService extends ChangeNotifier {
         .get();
 
     if (query.docs.isEmpty) {
-      throw "User not found";
+      throw "No account found with email: $email";
     }
 
     final userDoc = query.docs.first;
