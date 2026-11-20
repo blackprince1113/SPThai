@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:superthai/core/enums/question_type.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/data_service.dart';
-import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/editor/category_picker.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 
@@ -52,6 +51,7 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
   String? _selectedCategory;
   String _selectedEmoji = '📚';
   final TextEditingController _linkController = TextEditingController();
+  final TextEditingController _endNumController = TextEditingController();
 
   bool _isLoadingItems = false;
   bool _isImporting = false;
@@ -63,6 +63,7 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
   @override
   void dispose() {
     _linkController.dispose();
+    _endNumController.dispose();
     super.dispose();
   }
 
@@ -124,7 +125,21 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
     }
   }
 
-  String _generateImageUrl(String inputUrl, int index) {
+  int? _extractStartNumber(String inputUrl) {
+    final trimmed = inputUrl.trim();
+    if (trimmed.isEmpty) return null;
+
+    final regex = RegExp(r'^(.*\/|\s*)(.*?)(\d+)(\.[a-zA-Z0-9]+)?$');
+    final match = regex.firstMatch(trimmed);
+    if (match != null) {
+      return int.tryParse(match.group(3)!);
+    }
+    return null;
+  }
+
+  String _generateImageUrl(String inputUrl, int index, {required int? endNumber}) {
+    if (endNumber == null) return '';
+
     final trimmed = inputUrl.trim();
     if (trimmed.isEmpty) return '';
 
@@ -136,7 +151,13 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
       final numStr = match.group(3)!;
       final ext = match.group(4) ?? '';
 
-      final targetNumber = index;
+      final startNumber = int.tryParse(numStr) ?? 1;
+      final targetNumber = startNumber + (index - 1);
+
+      if (targetNumber > endNumber) {
+        return '';
+      }
+
       final bool hasLeadingZero = numStr.length > 1 && numStr.startsWith('0');
       final formattedNumber = hasLeadingZero
           ? targetNumber.toString().padLeft(numStr.length, '0')
@@ -181,7 +202,7 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
         .toLowerCase()
         .replaceAll(RegExp(r'\s+'), '_')
         .replaceAll(RegExp(r'[^a-z0-9_]'), '');
-    final filename = '${safeCategory}.xlsx';
+    final filename = '$safeCategory.xlsx';
 
     final confirm = await ThaiDialogs.showConfirmDialog(
       context,
@@ -251,11 +272,43 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
       return;
     }
 
-    if (_generateImageUrl(inputUrl, 1).isEmpty) {
+    final startNumber = _extractStartNumber(inputUrl);
+    if (startNumber == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
             'The link must contain a number in the filename (e.g. 1.png or 20.png)',
+          ),
+        ),
+      );
+      return;
+    }
+
+    final endNumText = _endNumController.text.trim();
+    if (endNumText.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter the end number'),
+        ),
+      );
+      return;
+    }
+
+    final int? endNumber = int.tryParse(endNumText);
+    if (endNumber == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a valid end number'),
+        ),
+      );
+      return;
+    }
+
+    if (endNumber < startNumber) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'End number ($endNumber) cannot be less than starting number ($startNumber)',
           ),
         ),
       );
@@ -275,7 +328,7 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
       context,
       title: "Confirm Import",
       content:
-          "Do you want to update image url for ${_targetItems.length} items in category \"$_selectedCategory\"?",
+          "Do you want to update image url for category \"$_selectedCategory\"?",
       warningText: "This action cannot be undone.",
       confirmLabel: "Yes",
       cancelLabel: "No",
@@ -295,6 +348,9 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
 
     try {
       final inputUrl = _linkController.text.trim();
+      final endNumText = _endNumController.text.trim();
+      final int? endNumber = int.tryParse(endNumText);
+
       final allPlans = await DataService.instance.getAllLessonPlans();
       final categoryPlans =
           allPlans.where((p) => p.category == _selectedCategory).toList()
@@ -325,10 +381,16 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
 
           for (var step in fullPlan.steps) {
             if (_isTargetStep(step)) {
-              final newUrl = _generateImageUrl(inputUrl, globalIndex++);
-              step.imageUrl = newUrl;
-              planChanged = true;
-              updatedCount++;
+              final newUrl = _generateImageUrl(
+                inputUrl,
+                globalIndex++,
+                endNumber: endNumber,
+              );
+              if (newUrl.isNotEmpty) {
+                step.imageUrl = newUrl;
+                planChanged = true;
+                updatedCount++;
+              }
             }
             updatedSteps.add(step);
           }
@@ -477,59 +539,149 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
 
               const SizedBox(height: 20),
 
-              const Text(
-                "Enter the link of the first image here",
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _linkController,
-                onChanged: (_) => setState(() {}),
-                decoration: InputDecoration(
-                  hintText:
-                      "https://pub-3c76a1a9f8a645da8174a56509c4f508.r2.dev/level1-module1-first%20thai%20words/1.png",
-                  hintStyle: TextStyle(
-                    fontSize: 12,
-                    color: theme.hintColor.withValues(alpha: 0.6),
-                  ),
-                  prefixIcon: Icon(
-                    Icons.link_rounded,
-                    color: primaryColor,
-                  ),
-                  suffixIcon: _linkController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear_rounded),
-                          onPressed: () {
-                            _linkController.clear();
-                            setState(() {});
-                          },
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: theme.cardColor,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(
-                      color: theme.dividerColor.withValues(alpha: 0.2),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          "Start Image Link",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _linkController,
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: "https://.../20.png",
+                            hintStyle: TextStyle(
+                              fontSize: 12,
+                              color: theme.hintColor.withValues(alpha: 0.6),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.link_rounded,
+                              color: primaryColor,
+                            ),
+                            suffixIcon: _linkController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear_rounded, size: 18),
+                                    onPressed: () {
+                                      _linkController.clear();
+                                      setState(() {});
+                                    },
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: theme.cardColor,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: theme.dividerColor.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: theme.dividerColor.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: primaryColor,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(
-                      color: theme.dividerColor.withValues(alpha: 0.2),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              "End Number",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              " *",
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _endNumController,
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly
+                          ],
+                          onChanged: (_) => setState(() {}),
+                          decoration: InputDecoration(
+                            hintText: "e.g. 52",
+                            hintStyle: TextStyle(
+                              fontSize: 12,
+                              color: theme.hintColor.withValues(alpha: 0.6),
+                            ),
+                            prefixIcon: Icon(
+                              Icons.numbers_rounded,
+                              color: primaryColor,
+                            ),
+                            suffixIcon: _endNumController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear_rounded, size: 18),
+                                    onPressed: () {
+                                      _endNumController.clear();
+                                      setState(() {});
+                                    },
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: theme.cardColor,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: theme.dividerColor.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: theme.dividerColor.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              borderSide: BorderSide(
+                                color: primaryColor,
+                                width: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(
-                      color: primaryColor,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
+                ],
               ),
 
               const SizedBox(height: 24),
@@ -659,9 +811,26 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
                     itemBuilder: (context, idx) {
                       final item = _targetItems[idx];
                       final inputUrl = _linkController.text.trim();
-                      final generatedUrl = inputUrl.isNotEmpty
-                          ? _generateImageUrl(inputUrl, item.index)
+                      final endNumText = _endNumController.text.trim();
+                      final int? endNumber = int.tryParse(endNumText);
+                      final int? startNumber = _extractStartNumber(inputUrl);
+
+                      final generatedUrl = (inputUrl.isNotEmpty && endNumber != null)
+                          ? _generateImageUrl(inputUrl, item.index,
+                              endNumber: endNumber)
                           : item.step.imageUrl;
+
+                      final bool isInvalidLink =
+                          inputUrl.isNotEmpty && startNumber == null;
+                      final bool isMissingEndNumber = endNumText.isEmpty;
+                      final bool isInvalidEndNumber =
+                          endNumText.isNotEmpty && endNumber == null;
+                      final bool isEndNumberSmaller = endNumber != null &&
+                          startNumber != null &&
+                          endNumber < startNumber;
+                      final bool isExceedingEndNumber = endNumber != null &&
+                          startNumber != null &&
+                          (startNumber + item.index - 1) > endNumber;
 
                       return Card(
                         margin: EdgeInsets.zero,
@@ -734,13 +903,58 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
                                         ),
                                       ],
                                     ),
-                                    if (inputUrl.isNotEmpty && generatedUrl.isEmpty) ...[
+                                    if (isInvalidLink) ...[
                                       const SizedBox(height: 4),
                                       const Text(
                                         'Link must contain a number in the filename (e.g. 1.png or 20.png)',
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: Colors.red,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ] else if (isMissingEndNumber && inputUrl.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Please enter an end number',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.orange,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ] else if (isInvalidEndNumber) ...[
+                                      const SizedBox(height: 4),
+                                      const Text(
+                                        'Please enter a valid end number',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.red,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ] else if (isEndNumberSmaller) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'End number ($endNumber) cannot be less than start number ($startNumber)',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.red,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ] else if (isExceedingEndNumber) ...[
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Skipped (exceeds end number $endNumber)',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: theme.hintColor.withValues(alpha: 0.7),
+                                          fontStyle: FontStyle.italic,
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
