@@ -6,6 +6,7 @@ import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/screens/navigation/main_container.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/features/lessons/presentation/screens/lesson_screen.dart';
+import 'package:superthai/ui/widgets/common/lesson_icon_widget.dart';
 
 class _SearchResult {
   final LessonPlan plan;
@@ -546,7 +547,12 @@ class _AppDrawerState extends State<AppDrawer> {
             color: primaryColor.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(emoji, style: const TextStyle(fontSize: 20)),
+          child: LessonIconWidget(
+            emoji: emoji,
+            lottieUrl: plan.lottieUrl,
+            size: 28,
+            emojiSize: 20,
+          ),
         ),
         title: Text(
           plan.title,

@@ -3,6 +3,7 @@ import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
+import 'package:superthai/ui/widgets/common/lesson_icon_widget.dart';
 
 class ManageLessonsScreen extends StatefulWidget {
   const ManageLessonsScreen({super.key});
@@ -264,9 +265,11 @@ class _CategoryTile extends StatelessWidget {
                 final lesson = lessons[index];
                 return ListTile(
                   key: ValueKey(lesson.id),
-                  leading: Text(
-                    lesson.emoji,
-                    style: const TextStyle(fontSize: 20),
+                  leading: LessonIconWidget(
+                    emoji: lesson.emoji,
+                    lottieUrl: lesson.lottieUrl,
+                    size: 28,
+                    emojiSize: 20,
                   ),
                   title: Text(lesson.title),
                   trailing: const Icon(

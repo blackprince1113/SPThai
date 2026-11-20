@@ -38,6 +38,7 @@ class _CreateScreenState extends State<CreateScreen> {
   String _lessonCategory = 'General';
   String _categoryEmoji = '🎯';
   String _lessonEmoji = '📚';
+  String? _lottieUrl;
   String? _existingId;
   bool _isLoading = false;
 
@@ -67,6 +68,7 @@ class _CreateScreenState extends State<CreateScreen> {
       _lessonCategory = widget.existingPlan!.category;
       _categoryEmoji = widget.existingPlan!.categoryEmoji;
       _lessonEmoji = widget.existingPlan!.emoji;
+      _lottieUrl = widget.existingPlan!.lottieUrl;
 
       final needsFetch =
           widget.existingPlan!.steps.isEmpty ||
@@ -86,6 +88,7 @@ class _CreateScreenState extends State<CreateScreen> {
             _lessonCategory = fullPlan.category;
             _categoryEmoji = fullPlan.categoryEmoji;
             _lessonEmoji = fullPlan.emoji;
+            _lottieUrl = fullPlan.lottieUrl;
             _lessonSteps = List.from(fullPlan.steps);
             _isLoading = false;
           });
@@ -142,6 +145,7 @@ class _CreateScreenState extends State<CreateScreen> {
           _lessonCategory = 'General';
           _categoryEmoji = '🎯';
           _lessonEmoji = '📚';
+          _lottieUrl = null;
           _lessonSteps = [
             LessonStepData(
               type: QuestionType.flashcard.typeKey,
@@ -225,18 +229,21 @@ class _CreateScreenState extends State<CreateScreen> {
       category: _lessonCategory,
       categoryEmoji: _categoryEmoji,
       lessonEmoji: _lessonEmoji,
+      lottieUrl: _lottieUrl,
       onSave:
           ({
             required title,
             required category,
             required categoryEmoji,
             required lessonEmoji,
+            lottieUrl,
           }) {
             setState(() {
               _lessonTitle = title;
               _lessonCategory = category;
               _categoryEmoji = categoryEmoji;
               _lessonEmoji = lessonEmoji;
+              _lottieUrl = lottieUrl;
             });
           },
     );
@@ -312,6 +319,7 @@ class _CreateScreenState extends State<CreateScreen> {
       category: _lessonCategory,
       categoryEmoji: _categoryEmoji.isEmpty ? '🎯' : _categoryEmoji,
       emoji: _lessonEmoji.isEmpty ? '📚' : _lessonEmoji,
+      lottieUrl: _lottieUrl,
       steps: _lessonSteps,
       creatorId: user.uid,
       index: widget.existingPlan?.index ?? 0,

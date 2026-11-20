@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/core/models/models.dart';
+import 'package:superthai/ui/widgets/common/lesson_icon_widget.dart';
 
 class UnitHeaderCard extends StatelessWidget {
   final String title;
@@ -184,9 +185,11 @@ class MapNode extends StatelessWidget {
                     ],
                   ),
                   child: Center(
-                    child: Text(
-                      plan.emoji,
-                      style: const TextStyle(fontSize: 36),
+                    child: LessonIconWidget(
+                      emoji: plan.emoji,
+                      lottieUrl: plan.lottieUrl,
+                      size: 50,
+                      emojiSize: 36,
                     ),
                   ),
                 ),

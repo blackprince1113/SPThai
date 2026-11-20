@@ -7,11 +7,13 @@ class LessonSettingsSheet extends StatefulWidget {
   final String initialCategory;
   final String initialCategoryEmoji;
   final String initialLessonEmoji;
+  final String? initialLottieUrl;
   final Function({
     required String title,
     required String category,
     required String categoryEmoji,
     required String lessonEmoji,
+    String? lottieUrl,
   })
   onSave;
 
@@ -21,6 +23,7 @@ class LessonSettingsSheet extends StatefulWidget {
     required this.initialCategory,
     required this.initialCategoryEmoji,
     required this.initialLessonEmoji,
+    this.initialLottieUrl,
     required this.onSave,
   });
 
@@ -30,11 +33,13 @@ class LessonSettingsSheet extends StatefulWidget {
     required String category,
     required String categoryEmoji,
     required String lessonEmoji,
+    String? lottieUrl,
     required Function({
       required String title,
       required String category,
       required String categoryEmoji,
       required String lessonEmoji,
+      String? lottieUrl,
     })
     onSave,
   }) {
@@ -49,6 +54,7 @@ class LessonSettingsSheet extends StatefulWidget {
         initialCategory: category,
         initialCategoryEmoji: categoryEmoji,
         initialLessonEmoji: lessonEmoji,
+        initialLottieUrl: lottieUrl,
         onSave: onSave,
       ),
     );
@@ -63,6 +69,7 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
   late final TextEditingController _categoryController;
   late final TextEditingController _categoryEmojiController;
   late final TextEditingController _emojiController;
+  late final TextEditingController _lottieUrlController;
 
   @override
   void initState() {
@@ -73,6 +80,9 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
       text: widget.initialCategoryEmoji,
     );
     _emojiController = TextEditingController(text: widget.initialLessonEmoji);
+    _lottieUrlController = TextEditingController(
+      text: widget.initialLottieUrl ?? '',
+    );
   }
 
   @override
@@ -81,6 +91,7 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
     _categoryController.dispose();
     _categoryEmojiController.dispose();
     _emojiController.dispose();
+    _lottieUrlController.dispose();
     super.dispose();
   }
 
@@ -240,6 +251,29 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _lottieUrlController,
+            decoration: InputDecoration(
+              labelText: 'Lottie Animation URL (Optional)',
+              labelStyle: const TextStyle(color: AppTheme.editModeColor),
+              hintText: 'https://.../animation.lottie',
+              prefixIcon: const Icon(
+                Icons.animation_rounded,
+                color: AppTheme.editModeColor,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: const BorderSide(
+                  color: AppTheme.editModeColor,
+                  width: 2,
+                ),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
+          ),
           const SizedBox(height: 32),
           SizedBox(
             width: double.infinity,
@@ -250,6 +284,9 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
                   category: _categoryController.text,
                   categoryEmoji: _categoryEmojiController.text,
                   lessonEmoji: _emojiController.text,
+                  lottieUrl: _lottieUrlController.text.trim().isEmpty
+                      ? null
+                      : _lottieUrlController.text.trim(),
                 );
                 Navigator.pop(context);
               },

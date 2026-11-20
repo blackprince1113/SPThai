@@ -4,6 +4,7 @@ import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/widgets/editor/category_picker.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
+import 'package:superthai/ui/widgets/common/lesson_icon_widget.dart';
 import 'package:superthai/core/utils/error_handler.dart';
 
 class LessonDetailsScreen extends StatefulWidget {
@@ -19,6 +20,7 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
   late TextEditingController _categoryController;
   late TextEditingController _categoryEmojiController;
   late TextEditingController _emojiController;
+  late TextEditingController _lottieUrlController;
   bool _isSaving = false;
 
   @override
@@ -32,6 +34,9 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
       text: widget.lessonPlan.categoryEmoji,
     );
     _emojiController = TextEditingController(text: widget.lessonPlan.emoji);
+    _lottieUrlController = TextEditingController(
+      text: widget.lessonPlan.lottieUrl ?? '',
+    );
   }
 
   @override
@@ -40,6 +45,7 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
     _categoryController.dispose();
     _categoryEmojiController.dispose();
     _emojiController.dispose();
+    _lottieUrlController.dispose();
     super.dispose();
   }
 
@@ -73,6 +79,9 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
       emoji: _emojiController.text.trim().isEmpty
           ? '📚'
           : _emojiController.text.trim(),
+      lottieUrl: _lottieUrlController.text.trim().isEmpty
+          ? null
+          : _lottieUrlController.text.trim(),
       steps: widget.lessonPlan.steps,
       creatorId: widget.lessonPlan.creatorId,
       createdAt: widget.lessonPlan.createdAt,
@@ -125,9 +134,12 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Center(
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: _emojiController,
-                  builder: (context, value, child) => Container(
+                child: ListenableBuilder(
+                  listenable: Listenable.merge([
+                    _emojiController,
+                    _lottieUrlController,
+                  ]),
+                  builder: (context, child) => Container(
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
@@ -145,9 +157,11 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
                       ],
                     ),
                     child: Center(
-                      child: Text(
-                        value.text,
-                        style: const TextStyle(fontSize: 50),
+                      child: LessonIconWidget(
+                        emoji: _emojiController.text,
+                        lottieUrl: _lottieUrlController.text,
+                        size: 70,
+                        emojiSize: 50,
                       ),
                     ),
                   ),
@@ -231,6 +245,56 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
                         ),
                         const SizedBox(height: 16),
                       ],
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Lottie Animation URL (Optional)",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _lottieUrlController,
+                    style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+                    decoration: InputDecoration(
+                      hintText: "https://.../animation.lottie",
+                      hintStyle: TextStyle(
+                        color: theme.disabledColor,
+                        fontSize: 13,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.animation_rounded,
+                        color: AppTheme.primaryColor,
+                      ),
+                      suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _lottieUrlController,
+                        builder: (context, value, child) {
+                          return value.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(
+                                    Icons.clear_rounded,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => _lottieUrlController.clear(),
+                                )
+                              : const SizedBox.shrink();
+                        },
+                      ),
+                      filled: true,
+                      fillColor: theme.cardColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
                     ),
                   ),
                 ],

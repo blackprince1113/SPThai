@@ -172,6 +172,7 @@ class DataService extends ChangeNotifier {
         category: plan.category,
         categoryEmoji: plan.categoryEmoji,
         emoji: plan.emoji,
+        lottieUrl: plan.lottieUrl,
         steps: List.generate(
           plan.steps.length,
           (i) => LessonStepData(id: 'placeholder_$i', type: 'flashcard'),

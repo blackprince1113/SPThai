@@ -6,6 +6,7 @@ class LessonPlan {
   final String category;
   final String categoryEmoji;
   final String emoji;
+  final String? lottieUrl;
   final List<LessonStepData> steps;
   final String? creatorId;
   final DateTime? createdAt;
@@ -17,6 +18,7 @@ class LessonPlan {
     required this.category,
     this.categoryEmoji = '🎯',
     this.emoji = '📚',
+    this.lottieUrl,
     required this.steps,
     this.creatorId,
     this.createdAt,
@@ -29,6 +31,7 @@ class LessonPlan {
     'category': category,
     'categoryEmoji': categoryEmoji,
     'emoji': emoji,
+    'lottieUrl': lottieUrl,
     'steps': steps.map((s) => s.toMap()).toList(),
     'creatorId': creatorId,
     'createdAt': createdAt?.toIso8601String(),
@@ -42,6 +45,7 @@ class LessonPlan {
       category: map['category'] ?? '',
       categoryEmoji: map['categoryEmoji'] ?? '🎯',
       emoji: map['emoji'] ?? '📚',
+      lottieUrl: map['lottieUrl'] as String?,
       steps: (map['steps'] as List? ?? [])
           .map((s) => LessonStepData.fromMap(Map<String, dynamic>.from(s)))
           .toList(),
