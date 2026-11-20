@@ -136,12 +136,11 @@ class _ImportOnlineImageScreenState extends State<ImportOnlineImageScreen> {
       final numStr = match.group(3)!;
       final ext = match.group(4) ?? '';
 
-      final startNumber = int.tryParse(numStr);
-      if (startNumber == null) return '';
-
-      final targetNumber = startNumber + (index - 1);
-      final formattedNumber =
-          targetNumber.toString().padLeft(numStr.length, '0');
+      final targetNumber = index;
+      final bool hasLeadingZero = numStr.length > 1 && numStr.startsWith('0');
+      final formattedNumber = hasLeadingZero
+          ? targetNumber.toString().padLeft(numStr.length, '0')
+          : targetNumber.toString();
 
       return '$prefix$formattedNumber$ext';
     }
