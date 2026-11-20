@@ -19,6 +19,8 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
   late TextEditingController _titleController;
   late TextEditingController _categoryController;
   late TextEditingController _categoryEmojiController;
+  late TextEditingController _categoryLottieUrlController;
+  late TextEditingController _categoryBackgroundImageUrlController;
   late TextEditingController _emojiController;
   late TextEditingController _lottieUrlController;
   bool _isSaving = false;
@@ -30,13 +32,59 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
     _categoryController = TextEditingController(
       text: widget.lessonPlan.category,
     );
-    _categoryEmojiController = TextEditingController(
-      text: widget.lessonPlan.categoryEmoji,
+
+    final catMeta = DataService.instance.getCategoryMetadata(
+      widget.lessonPlan.category,
+    );
+    final initialCatEmoji = widget.lessonPlan.categoryEmoji.isNotEmpty &&
+            widget.lessonPlan.categoryEmoji != '🎯'
+        ? widget.lessonPlan.categoryEmoji
+        : (catMeta['emoji'] ?? widget.lessonPlan.categoryEmoji);
+    final initialCatLottie =
+        widget.lessonPlan.categoryLottieUrl?.trim().isNotEmpty == true
+            ? widget.lessonPlan.categoryLottieUrl!.trim()
+            : catMeta['lottieUrl'];
+    final initialCatBg =
+        widget.lessonPlan.categoryBackgroundImageUrl?.trim().isNotEmpty == true
+            ? widget.lessonPlan.categoryBackgroundImageUrl!.trim()
+            : catMeta['bgUrl'];
+
+    _categoryEmojiController = TextEditingController(text: initialCatEmoji);
+    _categoryLottieUrlController = TextEditingController(
+      text: initialCatLottie ?? '',
+    );
+    _categoryBackgroundImageUrlController = TextEditingController(
+      text: initialCatBg ?? '',
     );
     _emojiController = TextEditingController(text: widget.lessonPlan.emoji);
     _lottieUrlController = TextEditingController(
       text: widget.lessonPlan.lottieUrl ?? '',
     );
+
+    _categoryController.addListener(() {
+      _onCategoryNameChanged(_categoryController.text);
+    });
+  }
+
+  void _onCategoryNameChanged(String catName) {
+    if (catName.trim().isEmpty) return;
+    final meta = DataService.instance.getCategoryMetadata(catName);
+    if (meta['emoji'] != null &&
+        meta['emoji']!.isNotEmpty &&
+        (_categoryEmojiController.text.isEmpty ||
+            _categoryEmojiController.text == '🎯')) {
+      _categoryEmojiController.text = meta['emoji']!;
+    }
+    if (meta['lottieUrl'] != null &&
+        meta['lottieUrl']!.isNotEmpty &&
+        _categoryLottieUrlController.text.trim().isEmpty) {
+      _categoryLottieUrlController.text = meta['lottieUrl']!;
+    }
+    if (meta['bgUrl'] != null &&
+        meta['bgUrl']!.isNotEmpty &&
+        _categoryBackgroundImageUrlController.text.trim().isEmpty) {
+      _categoryBackgroundImageUrlController.text = meta['bgUrl']!;
+    }
   }
 
   @override
@@ -44,6 +92,8 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
     _titleController.dispose();
     _categoryController.dispose();
     _categoryEmojiController.dispose();
+    _categoryLottieUrlController.dispose();
+    _categoryBackgroundImageUrlController.dispose();
     _emojiController.dispose();
     _lottieUrlController.dispose();
     super.dispose();
@@ -76,6 +126,13 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
       categoryEmoji: _categoryEmojiController.text.trim().isEmpty
           ? '🎯'
           : _categoryEmojiController.text.trim(),
+      categoryLottieUrl: _categoryLottieUrlController.text.trim().isEmpty
+          ? null
+          : _categoryLottieUrlController.text.trim(),
+      categoryBackgroundImageUrl:
+          _categoryBackgroundImageUrlController.text.trim().isEmpty
+              ? null
+              : _categoryBackgroundImageUrlController.text.trim(),
       emoji: _emojiController.text.trim().isEmpty
           ? '📚'
           : _emojiController.text.trim(),
@@ -339,6 +396,16 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
                                       result['name'] ?? '';
                                   _categoryEmojiController.text =
                                       result['emoji'] ?? '🎯';
+                                  if (result['lottieUrl'] != null &&
+                                      result['lottieUrl']!.isNotEmpty) {
+                                    _categoryLottieUrlController.text =
+                                        result['lottieUrl']!;
+                                  }
+                                  if (result['bgUrl'] != null &&
+                                      result['bgUrl']!.isNotEmpty) {
+                                    _categoryBackgroundImageUrlController.text =
+                                        result['bgUrl']!;
+                                  }
                                 }
                               },
                             ),
@@ -395,7 +462,107 @@ class _LessonDetailsScreenState extends State<LessonDetailsScreen> {
                 ],
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Category Lottie Animation URL (Optional)",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _categoryLottieUrlController,
+                    style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+                    decoration: InputDecoration(
+                      hintText: "https://.../animation.lottie",
+                      hintStyle: TextStyle(
+                        color: theme.disabledColor,
+                        fontSize: 13,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.animation_rounded,
+                        color: AppTheme.primaryColor,
+                      ),
+                      suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _categoryLottieUrlController,
+                        builder: (context, value, child) {
+                          return value.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(
+                                    Icons.clear_rounded,
+                                    size: 20,
+                                  ),
+                                  onPressed: () =>
+                                      _categoryLottieUrlController.clear(),
+                                )
+                              : const SizedBox.shrink();
+                        },
+                      ),
+                      filled: true,
+                      fillColor: theme.cardColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Category Background Image URL (Optional)",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: theme.textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _categoryBackgroundImageUrlController,
+                    style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+                    decoration: InputDecoration(
+                      hintText: "https://.../image.png",
+                      hintStyle: TextStyle(
+                        color: theme.disabledColor,
+                        fontSize: 13,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.image_rounded,
+                        color: AppTheme.primaryColor,
+                      ),
+                      suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: _categoryBackgroundImageUrlController,
+                        builder: (context, value, child) {
+                          return value.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(
+                                    Icons.clear_rounded,
+                                    size: 20,
+                                  ),
+                                  onPressed: () =>
+                                      _categoryBackgroundImageUrlController.clear(),
+                                )
+                              : const SizedBox.shrink();
+                        },
+                      ),
+                      filled: true,
+                      fillColor: theme.cardColor,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(15),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 16),
 
               ThaiInfoBox(
                 icon: Icons.info_outline_rounded,

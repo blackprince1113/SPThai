@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:superthai/core/services/audio_service.dart';
 import 'package:superthai/core/services/sound_service.dart';
 import 'package:superthai/core/viewmodels/lesson_view_model.dart';
@@ -199,22 +200,58 @@ class _LessonScreenState extends State<LessonScreen> {
           return Scaffold(body: _buildLoadingScreen());
         }
 
+        final categoryBgUrl =
+            _viewModel.currentPlan?.categoryBackgroundImageUrl?.trim();
+
         return Scaffold(
-          body: NotificationListener<StepResultNotification>(
-            onNotification: (StepResultNotification notification) {
-              _viewModel.nextStep(notification.result);
-              return true;
-            },
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _viewModel.steps.length,
-              physics: const BouncingScrollPhysics(),
-              onPageChanged: _onPageChanged,
-              itemBuilder: (context, index) {
-                final step = _viewModel.steps[index];
-                return _mapStepToPage(step, index == _viewModel.currentIndex);
-              },
-            ),
+          body: Stack(
+            children: [
+              if (categoryBgUrl != null && categoryBgUrl.isNotEmpty)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CachedNetworkImage(
+                          imageUrl: categoryBgUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) =>
+                              const SizedBox.shrink(),
+                        ),
+                        Container(
+                          color: Theme.of(context)
+                              .scaffoldBackgroundColor
+                              .withValues(
+                                alpha: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? 0.88
+                                    : 0.85,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              NotificationListener<StepResultNotification>(
+                onNotification: (StepResultNotification notification) {
+                  _viewModel.nextStep(notification.result);
+                  return true;
+                },
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: _viewModel.steps.length,
+                  physics: const BouncingScrollPhysics(),
+                  onPageChanged: _onPageChanged,
+                  itemBuilder: (context, index) {
+                    final step = _viewModel.steps[index];
+                    return _mapStepToPage(
+                      step,
+                      index == _viewModel.currentIndex,
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
           bottomNavigationBar: Container(
             padding: EdgeInsets.only(

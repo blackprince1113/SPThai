@@ -78,7 +78,7 @@ class _ConversationTakePageState extends State<ConversationTakePage> {
     final hasMore = _visibleCount < widget.messages.length;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           children: [

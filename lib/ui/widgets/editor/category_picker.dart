@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
+import 'package:superthai/ui/widgets/common/lesson_icon_widget.dart';
 
 class CategoryPicker extends StatefulWidget {
   const CategoryPicker({super.key});
@@ -23,14 +24,26 @@ class _CategoryPickerState extends State<CategoryPicker> {
 
   void _loadCategories() async {
     final plans = await DataService.instance.getAllLessonPlans();
-    final categoriesMap = <String, String>{};
+    final categoriesMap = <String, Map<String, String>>{};
     for (var p in plans) {
       if (p.category.isNotEmpty) {
-        categoriesMap[p.category] = p.categoryEmoji;
+        final existing = categoriesMap[p.category];
+        final lottieUrl = p.categoryLottieUrl ?? existing?['lottieUrl'] ?? '';
+        final bgUrl = p.categoryBackgroundImageUrl ?? existing?['bgUrl'] ?? '';
+        categoriesMap[p.category] = {
+          'emoji': p.categoryEmoji,
+          'lottieUrl': lottieUrl,
+          'bgUrl': bgUrl,
+        };
       }
     }
     _allCategories = categoriesMap.entries
-        .map((e) => {'name': e.key, 'emoji': e.value})
+        .map((e) => {
+              'name': e.key,
+              'emoji': e.value['emoji'] ?? '🎯',
+              'lottieUrl': e.value['lottieUrl'] ?? '',
+              'bgUrl': e.value['bgUrl'] ?? '',
+            })
         .toList();
     _filteredCategories = List.from(_allCategories);
     if (mounted) {
@@ -184,9 +197,11 @@ class _CategoryItem extends StatelessWidget {
                 color: AppTheme.primaryColor.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Text(
-                cat['emoji']!,
-                style: const TextStyle(fontSize: 20),
+              child: LessonIconWidget(
+                emoji: cat['emoji']!,
+                lottieUrl: cat['lottieUrl'],
+                size: 28,
+                emojiSize: 20,
               ),
             ),
             title: Text(

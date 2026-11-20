@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:superthai/core/services/data_service.dart';
 import 'package:superthai/ui/theme/app_theme.dart';
 import 'package:superthai/ui/widgets/editor/category_picker.dart';
 
@@ -6,12 +7,16 @@ class LessonSettingsSheet extends StatefulWidget {
   final String initialTitle;
   final String initialCategory;
   final String initialCategoryEmoji;
+  final String? initialCategoryLottieUrl;
+  final String? initialCategoryBackgroundImageUrl;
   final String initialLessonEmoji;
   final String? initialLottieUrl;
   final Function({
     required String title,
     required String category,
     required String categoryEmoji,
+    String? categoryLottieUrl,
+    String? categoryBackgroundImageUrl,
     required String lessonEmoji,
     String? lottieUrl,
   })
@@ -22,6 +27,8 @@ class LessonSettingsSheet extends StatefulWidget {
     required this.initialTitle,
     required this.initialCategory,
     required this.initialCategoryEmoji,
+    this.initialCategoryLottieUrl,
+    this.initialCategoryBackgroundImageUrl,
     required this.initialLessonEmoji,
     this.initialLottieUrl,
     required this.onSave,
@@ -32,12 +39,16 @@ class LessonSettingsSheet extends StatefulWidget {
     required String title,
     required String category,
     required String categoryEmoji,
+    String? categoryLottieUrl,
+    String? categoryBackgroundImageUrl,
     required String lessonEmoji,
     String? lottieUrl,
     required Function({
       required String title,
       required String category,
       required String categoryEmoji,
+      String? categoryLottieUrl,
+      String? categoryBackgroundImageUrl,
       required String lessonEmoji,
       String? lottieUrl,
     })
@@ -53,6 +64,8 @@ class LessonSettingsSheet extends StatefulWidget {
         initialTitle: title,
         initialCategory: category,
         initialCategoryEmoji: categoryEmoji,
+        initialCategoryLottieUrl: categoryLottieUrl,
+        initialCategoryBackgroundImageUrl: categoryBackgroundImageUrl,
         initialLessonEmoji: lessonEmoji,
         initialLottieUrl: lottieUrl,
         onSave: onSave,
@@ -68,6 +81,8 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
   late final TextEditingController _titleController;
   late final TextEditingController _categoryController;
   late final TextEditingController _categoryEmojiController;
+  late final TextEditingController _categoryLottieUrlController;
+  late final TextEditingController _categoryBackgroundImageUrlController;
   late final TextEditingController _emojiController;
   late final TextEditingController _lottieUrlController;
 
@@ -76,13 +91,59 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
     super.initState();
     _titleController = TextEditingController(text: widget.initialTitle);
     _categoryController = TextEditingController(text: widget.initialCategory);
-    _categoryEmojiController = TextEditingController(
-      text: widget.initialCategoryEmoji,
+
+    final catMeta = DataService.instance.getCategoryMetadata(
+      widget.initialCategory,
+    );
+    final initialCatEmoji = widget.initialCategoryEmoji.isNotEmpty &&
+            widget.initialCategoryEmoji != '🎯'
+        ? widget.initialCategoryEmoji
+        : (catMeta['emoji'] ?? widget.initialCategoryEmoji);
+    final initialCatLottie =
+        widget.initialCategoryLottieUrl?.trim().isNotEmpty == true
+            ? widget.initialCategoryLottieUrl!.trim()
+            : catMeta['lottieUrl'];
+    final initialCatBg =
+        widget.initialCategoryBackgroundImageUrl?.trim().isNotEmpty == true
+            ? widget.initialCategoryBackgroundImageUrl!.trim()
+            : catMeta['bgUrl'];
+
+    _categoryEmojiController = TextEditingController(text: initialCatEmoji);
+    _categoryLottieUrlController = TextEditingController(
+      text: initialCatLottie ?? '',
+    );
+    _categoryBackgroundImageUrlController = TextEditingController(
+      text: initialCatBg ?? '',
     );
     _emojiController = TextEditingController(text: widget.initialLessonEmoji);
     _lottieUrlController = TextEditingController(
       text: widget.initialLottieUrl ?? '',
     );
+
+    _categoryController.addListener(() {
+      _onCategoryNameChanged(_categoryController.text);
+    });
+  }
+
+  void _onCategoryNameChanged(String catName) {
+    if (catName.trim().isEmpty) return;
+    final meta = DataService.instance.getCategoryMetadata(catName);
+    if (meta['emoji'] != null &&
+        meta['emoji']!.isNotEmpty &&
+        (_categoryEmojiController.text.isEmpty ||
+            _categoryEmojiController.text == '🎯')) {
+      _categoryEmojiController.text = meta['emoji']!;
+    }
+    if (meta['lottieUrl'] != null &&
+        meta['lottieUrl']!.isNotEmpty &&
+        _categoryLottieUrlController.text.trim().isEmpty) {
+      _categoryLottieUrlController.text = meta['lottieUrl']!;
+    }
+    if (meta['bgUrl'] != null &&
+        meta['bgUrl']!.isNotEmpty &&
+        _categoryBackgroundImageUrlController.text.trim().isEmpty) {
+      _categoryBackgroundImageUrlController.text = meta['bgUrl']!;
+    }
   }
 
   @override
@@ -90,6 +151,8 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
     _titleController.dispose();
     _categoryController.dispose();
     _categoryEmojiController.dispose();
+    _categoryLottieUrlController.dispose();
+    _categoryBackgroundImageUrlController.dispose();
     _emojiController.dispose();
     _lottieUrlController.dispose();
     super.dispose();
@@ -208,6 +271,16 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
                             _categoryController.text = result['name'] ?? '';
                             _categoryEmojiController.text =
                                 result['emoji'] ?? '🎯';
+                            if (result['lottieUrl'] != null &&
+                                result['lottieUrl']!.isNotEmpty) {
+                              _categoryLottieUrlController.text =
+                                  result['lottieUrl']!;
+                            }
+                            if (result['bgUrl'] != null &&
+                                result['bgUrl']!.isNotEmpty) {
+                              _categoryBackgroundImageUrlController.text =
+                                  result['bgUrl']!;
+                            }
                           });
                         }
                       },
@@ -253,6 +326,52 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
           ),
           const SizedBox(height: 16),
           TextField(
+            controller: _categoryLottieUrlController,
+            decoration: InputDecoration(
+              labelText: 'Category Lottie Animation URL (Optional)',
+              labelStyle: const TextStyle(color: AppTheme.editModeColor),
+              hintText: 'https://.../animation.lottie',
+              prefixIcon: const Icon(
+                Icons.animation_rounded,
+                color: AppTheme.editModeColor,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: const BorderSide(
+                  color: AppTheme.editModeColor,
+                  width: 2,
+                ),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _categoryBackgroundImageUrlController,
+            decoration: InputDecoration(
+              labelText: 'Category Background Image URL (Optional)',
+              labelStyle: const TextStyle(color: AppTheme.editModeColor),
+              hintText: 'https://.../image.png',
+              prefixIcon: const Icon(
+                Icons.image_rounded,
+                color: AppTheme.editModeColor,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+                borderSide: const BorderSide(
+                  color: AppTheme.editModeColor,
+                  width: 2,
+                ),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
             controller: _lottieUrlController,
             decoration: InputDecoration(
               labelText: 'Lottie Animation URL (Optional)',
@@ -283,6 +402,14 @@ class _LessonSettingsSheetState extends State<LessonSettingsSheet> {
                   title: _titleController.text,
                   category: _categoryController.text,
                   categoryEmoji: _categoryEmojiController.text,
+                  categoryLottieUrl:
+                      _categoryLottieUrlController.text.trim().isEmpty
+                          ? null
+                          : _categoryLottieUrlController.text.trim(),
+                  categoryBackgroundImageUrl:
+                      _categoryBackgroundImageUrlController.text.trim().isEmpty
+                          ? null
+                          : _categoryBackgroundImageUrlController.text.trim(),
                   lessonEmoji: _emojiController.text,
                   lottieUrl: _lottieUrlController.text.trim().isEmpty
                       ? null

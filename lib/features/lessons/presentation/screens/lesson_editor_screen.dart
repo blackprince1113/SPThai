@@ -37,6 +37,8 @@ class _CreateScreenState extends State<CreateScreen> {
   String _lessonTitle = 'My New Lesson';
   String _lessonCategory = 'General';
   String _categoryEmoji = '🎯';
+  String? _categoryLottieUrl;
+  String? _categoryBackgroundImageUrl;
   String _lessonEmoji = '📚';
   String? _lottieUrl;
   String? _existingId;
@@ -67,6 +69,9 @@ class _CreateScreenState extends State<CreateScreen> {
       _lessonTitle = widget.existingPlan!.title;
       _lessonCategory = widget.existingPlan!.category;
       _categoryEmoji = widget.existingPlan!.categoryEmoji;
+      _categoryLottieUrl = widget.existingPlan!.categoryLottieUrl;
+      _categoryBackgroundImageUrl =
+          widget.existingPlan!.categoryBackgroundImageUrl;
       _lessonEmoji = widget.existingPlan!.emoji;
       _lottieUrl = widget.existingPlan!.lottieUrl;
 
@@ -87,6 +92,8 @@ class _CreateScreenState extends State<CreateScreen> {
             _lessonTitle = fullPlan.title;
             _lessonCategory = fullPlan.category;
             _categoryEmoji = fullPlan.categoryEmoji;
+            _categoryLottieUrl = fullPlan.categoryLottieUrl;
+            _categoryBackgroundImageUrl = fullPlan.categoryBackgroundImageUrl;
             _lessonEmoji = fullPlan.emoji;
             _lottieUrl = fullPlan.lottieUrl;
             _lessonSteps = List.from(fullPlan.steps);
@@ -99,9 +106,12 @@ class _CreateScreenState extends State<CreateScreen> {
           });
         }
       } else {
-        setState(() {
-          _lessonSteps = List.from(widget.existingPlan!.steps);
-        });
+      final catMeta = DataService.instance.getCategoryMetadata(_lessonCategory);
+      _categoryLottieUrl ??= catMeta['lottieUrl'];
+      _categoryBackgroundImageUrl ??= catMeta['bgUrl'];
+      if (_categoryEmoji == '🎯' && catMeta['emoji'] != null) {
+        _categoryEmoji = catMeta['emoji']!;
+      }
       }
     }
   }
@@ -144,6 +154,8 @@ class _CreateScreenState extends State<CreateScreen> {
           _lessonTitle = 'My New Lesson';
           _lessonCategory = 'General';
           _categoryEmoji = '🎯';
+          _categoryLottieUrl = null;
+          _categoryBackgroundImageUrl = null;
           _lessonEmoji = '📚';
           _lottieUrl = null;
           _lessonSteps = [
@@ -228,6 +240,8 @@ class _CreateScreenState extends State<CreateScreen> {
       title: _lessonTitle,
       category: _lessonCategory,
       categoryEmoji: _categoryEmoji,
+      categoryLottieUrl: _categoryLottieUrl,
+      categoryBackgroundImageUrl: _categoryBackgroundImageUrl,
       lessonEmoji: _lessonEmoji,
       lottieUrl: _lottieUrl,
       onSave:
@@ -235,6 +249,8 @@ class _CreateScreenState extends State<CreateScreen> {
             required title,
             required category,
             required categoryEmoji,
+            categoryLottieUrl,
+            categoryBackgroundImageUrl,
             required lessonEmoji,
             lottieUrl,
           }) {
@@ -242,6 +258,8 @@ class _CreateScreenState extends State<CreateScreen> {
               _lessonTitle = title;
               _lessonCategory = category;
               _categoryEmoji = categoryEmoji;
+              _categoryLottieUrl = categoryLottieUrl;
+              _categoryBackgroundImageUrl = categoryBackgroundImageUrl;
               _lessonEmoji = lessonEmoji;
               _lottieUrl = lottieUrl;
             });
@@ -318,6 +336,8 @@ class _CreateScreenState extends State<CreateScreen> {
       title: _lessonTitle,
       category: _lessonCategory,
       categoryEmoji: _categoryEmoji.isEmpty ? '🎯' : _categoryEmoji,
+      categoryLottieUrl: _categoryLottieUrl,
+      categoryBackgroundImageUrl: _categoryBackgroundImageUrl,
       emoji: _lessonEmoji.isEmpty ? '📚' : _lessonEmoji,
       lottieUrl: _lottieUrl,
       steps: _lessonSteps,

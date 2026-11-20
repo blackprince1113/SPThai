@@ -5,6 +5,8 @@ class LessonPlan {
   final String title;
   final String category;
   final String categoryEmoji;
+  final String? categoryLottieUrl;
+  final String? categoryBackgroundImageUrl;
   final String emoji;
   final String? lottieUrl;
   final List<LessonStepData> steps;
@@ -17,6 +19,8 @@ class LessonPlan {
     required this.title,
     required this.category,
     this.categoryEmoji = '🎯',
+    this.categoryLottieUrl,
+    this.categoryBackgroundImageUrl,
     this.emoji = '📚',
     this.lottieUrl,
     required this.steps,
@@ -30,6 +34,8 @@ class LessonPlan {
     'title': title,
     'category': category,
     'categoryEmoji': categoryEmoji,
+    'categoryLottieUrl': categoryLottieUrl,
+    'categoryBackgroundImageUrl': categoryBackgroundImageUrl,
     'emoji': emoji,
     'lottieUrl': lottieUrl,
     'steps': steps.map((s) => s.toMap()).toList(),
@@ -44,6 +50,8 @@ class LessonPlan {
       title: map['title'] ?? '',
       category: map['category'] ?? '',
       categoryEmoji: map['categoryEmoji'] ?? '🎯',
+      categoryLottieUrl: map['categoryLottieUrl'] as String?,
+      categoryBackgroundImageUrl: map['categoryBackgroundImageUrl'] as String? ?? map['categoryBgUrl'] as String?,
       emoji: map['emoji'] ?? '📚',
       lottieUrl: map['lottieUrl'] as String?,
       steps: (map['steps'] as List? ?? [])

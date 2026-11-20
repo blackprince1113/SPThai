@@ -171,13 +171,15 @@ class DataService extends ChangeNotifier {
         title: plan.title,
         category: plan.category,
         categoryEmoji: plan.categoryEmoji,
+        categoryLottieUrl: plan.categoryLottieUrl,
+        categoryBackgroundImageUrl: plan.categoryBackgroundImageUrl,
         emoji: plan.emoji,
         lottieUrl: plan.lottieUrl,
         steps: List.generate(
           plan.steps.length,
           (i) => LessonStepData(id: 'placeholder_$i', type: 'flashcard'),
         ),
-        creatorId: plan.creatorId,
+        creatorId: plan.createdAt == null ? null : plan.creatorId,
         createdAt: plan.createdAt,
         index: plan.index,
       );
@@ -242,6 +244,35 @@ class DataService extends ChangeNotifier {
     return cachedWords;
   }
 
+  Map<String, String?> getCategoryMetadata(String category) {
+    final catName = category.trim();
+    if (catName.isEmpty) return {};
+    final cachedPlans = _cachedPlans;
+    if (cachedPlans == null) return {};
+    String? emoji;
+    String? lottieUrl;
+    String? bgUrl;
+    for (final p in cachedPlans) {
+      if (p.category.trim() == catName) {
+        if (p.categoryEmoji.isNotEmpty && p.categoryEmoji != '🎯' && emoji == null) {
+          emoji = p.categoryEmoji;
+        }
+        if (p.categoryLottieUrl != null && p.categoryLottieUrl!.trim().isNotEmpty && lottieUrl == null) {
+          lottieUrl = p.categoryLottieUrl!.trim();
+        }
+        if (p.categoryBackgroundImageUrl != null && p.categoryBackgroundImageUrl!.trim().isNotEmpty && bgUrl == null) {
+          bgUrl = p.categoryBackgroundImageUrl!.trim();
+        }
+        if (emoji != null && lottieUrl != null && bgUrl != null) break;
+      }
+    }
+    return {
+      'emoji': emoji,
+      'lottieUrl': lottieUrl,
+      'bgUrl': bgUrl,
+    };
+  }
+
   Future<void> addLessonPlan(LessonPlan plan) async {
     final cachedPlans = _cachedPlans;
     final nextIndex =
@@ -252,6 +283,39 @@ class DataService extends ChangeNotifier {
               1
         : null;
     await _lessonRepository.save(plan, nextIndex: nextIndex);
+
+    // Propagate category metadata (categoryEmoji, categoryLottieUrl, categoryBackgroundImageUrl) to all lessons in the same category
+    final categoryName = plan.category.trim();
+    if (categoryName.isNotEmpty && cachedPlans != null) {
+      final otherCategoryPlans = cachedPlans
+          .where((p) => p.category.trim() == categoryName && p.id != plan.id)
+          .toList();
+      for (final otherPlan in otherCategoryPlans) {
+        final needsUpdate =
+            otherPlan.categoryEmoji != plan.categoryEmoji ||
+            otherPlan.categoryLottieUrl != plan.categoryLottieUrl ||
+            otherPlan.categoryBackgroundImageUrl != plan.categoryBackgroundImageUrl;
+
+        if (needsUpdate) {
+          final updatedOtherPlan = LessonPlan(
+            id: otherPlan.id,
+            title: otherPlan.title,
+            category: otherPlan.category,
+            categoryEmoji: plan.categoryEmoji,
+            categoryLottieUrl: plan.categoryLottieUrl,
+            categoryBackgroundImageUrl: plan.categoryBackgroundImageUrl,
+            emoji: otherPlan.emoji,
+            lottieUrl: otherPlan.lottieUrl,
+            steps: otherPlan.steps,
+            creatorId: otherPlan.creatorId,
+            createdAt: otherPlan.createdAt,
+            index: otherPlan.index,
+          );
+          await _lessonRepository.save(updatedOtherPlan);
+        }
+      }
+    }
+
     _invalidatePlansCache();
     notifyListeners();
   }

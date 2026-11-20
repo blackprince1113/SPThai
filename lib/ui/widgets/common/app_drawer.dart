@@ -271,6 +271,7 @@ class _AppDrawerState extends State<AppDrawer> {
                             context,
                             categoryName: catName,
                             emoji: emoji,
+                            lottieUrl: firstPlan.categoryLottieUrl,
                             lessonCount: catPlans.length,
                             mainState: mainState,
                           );
@@ -355,6 +356,7 @@ class _AppDrawerState extends State<AppDrawer> {
                         return _buildCategoryItem(
                           context,
                           emoji: emoji,
+                          lottieUrl: firstPlan.categoryLottieUrl,
                           title: catName,
                           count: catPlans.length,
                           isSelected: isSelected,
@@ -615,6 +617,7 @@ class _AppDrawerState extends State<AppDrawer> {
     BuildContext context, {
     required String categoryName,
     required String emoji,
+    String? lottieUrl,
     required int lessonCount,
     required MainContainerState? mainState,
   }) {
@@ -636,7 +639,12 @@ class _AppDrawerState extends State<AppDrawer> {
             color: primaryColor.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(emoji, style: const TextStyle(fontSize: 20)),
+          child: LessonIconWidget(
+            emoji: emoji,
+            lottieUrl: lottieUrl,
+            size: 28,
+            emojiSize: 20,
+          ),
         ),
         title: Text(
           'หมวดหมู่: $categoryName',
@@ -662,6 +670,7 @@ class _AppDrawerState extends State<AppDrawer> {
   Widget _buildCategoryItem(
     BuildContext context, {
     required String emoji,
+    String? lottieUrl,
     required String title,
     required int count,
     required bool isSelected,
@@ -683,7 +692,12 @@ class _AppDrawerState extends State<AppDrawer> {
                 : theme.dividerColor.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Text(emoji, style: const TextStyle(fontSize: 18)),
+          child: LessonIconWidget(
+            emoji: emoji,
+            lottieUrl: lottieUrl,
+            size: 26,
+            emojiSize: 18,
+          ),
         ),
         title: Text(
           title,

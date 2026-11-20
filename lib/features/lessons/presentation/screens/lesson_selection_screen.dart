@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:superthai/core/models/models.dart';
 import 'package:superthai/core/services/auth_service.dart';
 import 'package:superthai/core/services/data_service.dart';
@@ -9,6 +10,7 @@ import 'package:superthai/features/lessons/presentation/screens/lesson_editor_sc
 import 'package:superthai/ui/screens/navigation/main_container.dart';
 import 'package:superthai/ui/widgets/shared_widgets.dart';
 import 'package:superthai/ui/widgets/lesson/lesson_map_widgets.dart';
+import 'package:superthai/ui/widgets/common/lesson_icon_widget.dart';
 
 class LessonSelectionScreen extends StatefulWidget {
   final String? selectedCategory;
@@ -266,34 +268,94 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
           });
         }
 
-        String appBarTitle = "Lesson";
+        Widget appBarTitleWidget;
+        String? categoryBgUrl;
         if (activeCategory != null && activeCategory != 'ALL') {
-          final firstPlan = _categoryMap[activeCategory]?.first;
+          final categoryPlans = _categoryMap[activeCategory];
+          String? categoryLottieUrl;
+          if (categoryPlans != null && categoryPlans.isNotEmpty) {
+            for (final p in categoryPlans) {
+              if (p.categoryLottieUrl != null &&
+                  p.categoryLottieUrl!.trim().isNotEmpty &&
+                  categoryLottieUrl == null) {
+                categoryLottieUrl = p.categoryLottieUrl!.trim();
+              }
+              if (p.categoryBackgroundImageUrl != null &&
+                  p.categoryBackgroundImageUrl!.trim().isNotEmpty &&
+                  categoryBgUrl == null) {
+                categoryBgUrl = p.categoryBackgroundImageUrl!.trim();
+              }
+              if (categoryLottieUrl != null && categoryBgUrl != null) break;
+            }
+          }
+          final firstPlan = categoryPlans?.first;
           final emoji = firstPlan?.categoryEmoji.isNotEmpty == true
               ? firstPlan!.categoryEmoji
               : (firstPlan?.emoji.isNotEmpty == true ? firstPlan!.emoji : '📚');
-          appBarTitle = "$emoji $activeCategory";
+
+          appBarTitleWidget = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              LessonIconWidget(
+                emoji: emoji,
+                lottieUrl: categoryLottieUrl,
+                size: 28,
+                emojiSize: 20,
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  activeCategory,
+                  style: Theme.of(context)
+                          .appBarTheme
+                          .titleTextStyle
+                          ?.copyWith(fontSize: 18) ??
+                      const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          );
         } else if (activeCategory == 'ALL') {
-          appBarTitle = "📚 All Lessons";
+          appBarTitleWidget = Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text("📚", style: TextStyle(fontSize: 20)),
+              const SizedBox(width: 8),
+              Text(
+                "All Lessons",
+                style: Theme.of(context)
+                        .appBarTheme
+                        .titleTextStyle
+                        ?.copyWith(fontSize: 18) ??
+                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          );
+        } else {
+          appBarTitleWidget = const Text(
+            "Lesson",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          );
         }
 
         if (allPlans == null &&
             snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
-            appBar: ThaiAppBar(title: appBarTitle, centerTitle: true),
+            appBar: ThaiAppBar(titleWidget: appBarTitleWidget, centerTitle: true),
             body: const Center(child: CircularProgressIndicator()),
           );
         }
         if (snapshot.hasError && allPlans == null) {
           return Scaffold(
-            appBar: ThaiAppBar(title: appBarTitle, centerTitle: true),
+            appBar: ThaiAppBar(titleWidget: appBarTitleWidget, centerTitle: true),
             body: Center(child: Text("Error: ${snapshot.error}")),
           );
         }
 
         return Scaffold(
           appBar: ThaiAppBar(
-            title: appBarTitle,
+            titleWidget: appBarTitleWidget,
             centerTitle: true,
             actions: [
               Consumer<ProgressService>(
@@ -323,6 +385,32 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
           ),
           body: Stack(
             children: [
+              if (categoryBgUrl != null && categoryBgUrl.isNotEmpty)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CachedNetworkImage(
+                          imageUrl: categoryBgUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (context, url, error) =>
+                              const SizedBox.shrink(),
+                        ),
+                        Container(
+                          color: Theme.of(context)
+                              .scaffoldBackgroundColor
+                              .withValues(
+                                alpha: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? 0.88
+                                    : 0.85,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Consumer<ProgressService>(
                 builder: (context, progress, _) {
                   return _LessonMap(

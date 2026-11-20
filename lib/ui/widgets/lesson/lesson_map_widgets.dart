@@ -5,6 +5,7 @@ import 'package:superthai/ui/widgets/common/lesson_icon_widget.dart';
 class UnitHeaderCard extends StatelessWidget {
   final String title;
   final String emoji;
+  final String? lottieUrl;
   final int completed;
   final int total;
 
@@ -12,6 +13,7 @@ class UnitHeaderCard extends StatelessWidget {
     super.key,
     required this.title,
     this.emoji = '🎯',
+    this.lottieUrl,
     required this.completed,
     required this.total,
   });
@@ -57,7 +59,12 @@ class UnitHeaderCard extends StatelessWidget {
               ],
             ),
             child: Center(
-              child: Text(emoji, style: const TextStyle(fontSize: 32)),
+              child: LessonIconWidget(
+                emoji: emoji,
+                lottieUrl: lottieUrl,
+                size: 50,
+                emojiSize: 32,
+              ),
             ),
           ),
           const SizedBox(width: 16),

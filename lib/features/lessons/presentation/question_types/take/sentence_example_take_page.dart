@@ -96,7 +96,7 @@ class _SentenceExampleTakePageState extends State<SentenceExampleTakePage> {
     }
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: Colors.transparent,
       appBar: widget.showAppBar
           ? const ThaiAppBar(title: "Example Sentences")
           : null,
