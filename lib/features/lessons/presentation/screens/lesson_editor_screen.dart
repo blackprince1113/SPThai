@@ -74,6 +74,16 @@ class _CreateScreenState extends State<CreateScreen> {
           widget.existingPlan!.categoryBackgroundImageUrl;
       _lessonEmoji = widget.existingPlan!.emoji;
       _lottieUrl = widget.existingPlan!.lottieUrl;
+      if (widget.existingPlan!.steps.isNotEmpty) {
+        _lessonSteps = List.from(widget.existingPlan!.steps);
+      }
+
+      final catMeta = DataService.instance.getCategoryMetadata(_lessonCategory);
+      _categoryLottieUrl ??= catMeta['lottieUrl'];
+      _categoryBackgroundImageUrl ??= catMeta['bgUrl'];
+      if (_categoryEmoji == '🎯' && catMeta['emoji'] != null) {
+        _categoryEmoji = catMeta['emoji']!;
+      }
 
       final needsFetch =
           widget.existingPlan!.steps.isEmpty ||
@@ -101,17 +111,12 @@ class _CreateScreenState extends State<CreateScreen> {
           });
         } else {
           setState(() {
-            _lessonSteps = List.from(widget.existingPlan!.steps);
+            if (widget.existingPlan!.steps.isNotEmpty) {
+              _lessonSteps = List.from(widget.existingPlan!.steps);
+            }
             _isLoading = false;
           });
         }
-      } else {
-      final catMeta = DataService.instance.getCategoryMetadata(_lessonCategory);
-      _categoryLottieUrl ??= catMeta['lottieUrl'];
-      _categoryBackgroundImageUrl ??= catMeta['bgUrl'];
-      if (_categoryEmoji == '🎯' && catMeta['emoji'] != null) {
-        _categoryEmoji = catMeta['emoji']!;
-      }
       }
     }
   }
@@ -313,7 +318,8 @@ class _CreateScreenState extends State<CreateScreen> {
           step.questionType = selectedType;
 
           if ((selectedType == QuestionType.fourChoice ||
-                  selectedType == QuestionType.listeningChoice) &&
+                  selectedType == QuestionType.listeningChoice ||
+                  selectedType == QuestionType.vowelFill) &&
               step.choices.length < 4) {
             step.choices.addAll(
               List.generate(4 - step.choices.length, (_) => ''),
@@ -452,51 +458,53 @@ class _CreateScreenState extends State<CreateScreen> {
   }
 
   void _updateStepForIndex(int index, String field, dynamic value) {
-    final lessonStep = _lessonSteps[index];
-    if (field.startsWith('choice_')) {
-      final choiceIndex = int.parse(field.split('_')[1]);
-      final oldChoiceText = lessonStep.choices.length > choiceIndex
-          ? lessonStep.choices[choiceIndex]
-          : "";
+    setState(() {
+      final lessonStep = _lessonSteps[index];
+      if (field.startsWith('choice_')) {
+        final choiceIndex = int.parse(field.split('_')[1]);
+        final oldChoiceText = lessonStep.choices.length > choiceIndex
+            ? lessonStep.choices[choiceIndex]
+            : "";
 
-      if (lessonStep.choices.length <= choiceIndex) {
-        lessonStep.choices.addAll(
-          List.generate(choiceIndex - lessonStep.choices.length + 1, (_) => ''),
-        );
-      }
-      lessonStep.choices[choiceIndex] = value;
+        if (lessonStep.choices.length <= choiceIndex) {
+          lessonStep.choices.addAll(
+            List.generate(choiceIndex - lessonStep.choices.length + 1, (_) => ''),
+          );
+        }
+        lessonStep.choices[choiceIndex] = value;
 
-      if (lessonStep.answer == oldChoiceText && oldChoiceText.isNotEmpty) {
-        lessonStep.answer = value;
-      }
-    } else {
-      switch (field) {
-        case 'thai':
-          lessonStep.thai = value;
-          break;
-        case 'phonetic':
-          lessonStep.phonetic = value;
-          break;
-        case 'english':
-          lessonStep.english = value;
-          break;
-        case 'question':
-          lessonStep.question = value;
-          break;
-        case 'answer':
+        if (lessonStep.answer == oldChoiceText && oldChoiceText.isNotEmpty) {
           lessonStep.answer = value;
-          break;
-        case 'imageUrl':
-          lessonStep.imageUrl = value;
-          break;
-        case 'choices':
-          lessonStep.choices = List<String>.from(value);
-          break;
-        case 'conversation':
-          lessonStep.conversation = List<ChatMessage>.from(value);
-          break;
+        }
+      } else {
+        switch (field) {
+          case 'thai':
+            lessonStep.thai = value;
+            break;
+          case 'phonetic':
+            lessonStep.phonetic = value;
+            break;
+          case 'english':
+            lessonStep.english = value;
+            break;
+          case 'question':
+            lessonStep.question = value;
+            break;
+          case 'answer':
+            lessonStep.answer = value;
+            break;
+          case 'imageUrl':
+            lessonStep.imageUrl = value;
+            break;
+          case 'choices':
+            lessonStep.choices = List<String>.from(value);
+            break;
+          case 'conversation':
+            lessonStep.conversation = List<ChatMessage>.from(value);
+            break;
+        }
       }
-    }
+    });
   }
 
   @override

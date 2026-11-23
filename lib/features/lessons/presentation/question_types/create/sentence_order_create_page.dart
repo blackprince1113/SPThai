@@ -82,6 +82,23 @@ class _SentenceOrderCreatePageState extends State<SentenceOrderCreatePage> {
     super.dispose();
   }
 
+  void _addWord() {
+    setState(() {
+      _tokenControllers.add(TextEditingController(text: ""));
+      final newList = _tokenControllers.map((e) => e.text).toList();
+      widget.onEdit?.call('choices', newList);
+    });
+  }
+
+  void _removeWord(int index) {
+    setState(() {
+      final controller = _tokenControllers.removeAt(index);
+      controller.dispose();
+      final newList = _tokenControllers.map((e) => e.text).toList();
+      widget.onEdit?.call('choices', newList);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -137,15 +154,7 @@ class _SentenceOrderCreatePageState extends State<SentenceOrderCreatePage> {
                         fontSize: 12,
                       ),
                       TextButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            final newList = _tokenControllers
-                                .map((e) => e.text)
-                                .toList();
-                            newList.add("");
-                            widget.onEdit?.call('choices', newList);
-                          });
-                        },
+                        onPressed: _addWord,
                         icon: Icon(Icons.add, size: 18, color: primaryColor),
                         label: Text(
                           "Add Word",
@@ -164,6 +173,7 @@ class _SentenceOrderCreatePageState extends State<SentenceOrderCreatePage> {
                     itemCount: _tokenControllers.length,
                     itemBuilder: (context, index) {
                       return Padding(
+                        key: ValueKey(_tokenControllers[index]),
                         padding: const EdgeInsets.only(bottom: 12),
                         child: Row(
                           children: [
@@ -182,15 +192,7 @@ class _SentenceOrderCreatePageState extends State<SentenceOrderCreatePage> {
                             ),
                             const SizedBox(width: 12),
                             IconButton(
-                              onPressed: () {
-                                setState(() {
-                                  final newList = _tokenControllers
-                                      .map((e) => e.text)
-                                      .toList();
-                                  newList.removeAt(index);
-                                  widget.onEdit?.call('choices', newList);
-                                });
-                              },
+                              onPressed: () => _removeWord(index),
                               icon: const Icon(Icons.delete_outline_rounded),
                               color: Colors.red,
                             ),

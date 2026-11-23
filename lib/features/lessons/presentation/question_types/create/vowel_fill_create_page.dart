@@ -30,6 +30,7 @@ class _VowelFillCreatePageState extends State<VowelFillCreatePage> {
   late final TextEditingController _thaiController;
   late final TextEditingController _imageUrlController;
   final List<TextEditingController> _choiceControllers = [];
+  int _correctIndex = -1;
 
   @override
   void initState() {
@@ -46,6 +47,18 @@ class _VowelFillCreatePageState extends State<VowelFillCreatePage> {
         ),
       );
     }
+    _syncCorrectIndex();
+  }
+
+  void _syncCorrectIndex() {
+    int foundIndex = -1;
+    for (int i = 0; i < widget.choices.length; i++) {
+      if (widget.choices[i] == widget.answer && widget.answer.isNotEmpty) {
+        foundIndex = i;
+        break;
+      }
+    }
+    _correctIndex = foundIndex;
   }
 
   void _syncTextFields() {
@@ -66,6 +79,7 @@ class _VowelFillCreatePageState extends State<VowelFillCreatePage> {
       String text = widget.choices.length > i ? widget.choices[i] : "";
       if (_choiceControllers[i].text != text) _choiceControllers[i].text = text;
     }
+    _syncCorrectIndex();
   }
 
   @override
@@ -90,13 +104,6 @@ class _VowelFillCreatePageState extends State<VowelFillCreatePage> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final primaryColor = theme.colorScheme.primary;
-    int correctIndex = -1;
-    for (int i = 0; i < widget.choices.length; i++) {
-      if (widget.choices[i] == widget.answer && widget.answer.isNotEmpty) {
-        correctIndex = i;
-        break;
-      }
-    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -165,7 +172,7 @@ class _VowelFillCreatePageState extends State<VowelFillCreatePage> {
                   const SizedBox(height: 16),
                   ...List.generate(
                     4,
-                    (index) => _buildEditableChoice(index, correctIndex),
+                    (index) => _buildEditableChoice(index),
                   ),
                 ],
               ),
@@ -176,8 +183,8 @@ class _VowelFillCreatePageState extends State<VowelFillCreatePage> {
     );
   }
 
-  Widget _buildEditableChoice(int index, int correctIndex) {
-    final isCorrect = correctIndex == index;
+  Widget _buildEditableChoice(int index) {
+    final isCorrect = _correctIndex == index;
     return ThaiEditableChoiceTile(
       key: ValueKey('choice_container_$index'),
       index: index,
@@ -190,9 +197,11 @@ class _VowelFillCreatePageState extends State<VowelFillCreatePage> {
         widget.onEdit?.call('choice_$index', val);
       },
       onCorrectChanged: (val) {
-        if (val) {
-          widget.onEdit?.call('answer', _choiceControllers[index].text);
-        }
+        if (!val) return;
+        setState(() {
+          _correctIndex = index;
+        });
+        widget.onEdit?.call('answer', _choiceControllers[index].text);
       },
     );
   }
