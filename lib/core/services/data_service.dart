@@ -193,6 +193,12 @@ class DataService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<BackupResult> backupLessonPlans({
+    void Function(double progress, String status)? onProgress,
+  }) async {
+    return _lessonRepository.backupLessonPlans(onProgress: onProgress);
+  }
+
   Future<List<WordEntry>> getWordsByCategory(String category) async {
     if (_wordsByCategoryCache.containsKey(category)) {
       return _wordsByCategoryCache[category]!;

@@ -204,6 +204,15 @@ class FirestoreLessonRepository implements LessonRepository {
   }
 
   bool _sameFirestoreValue(Object? a, Object? b) {
+    if (a is Timestamp && b is Timestamp) {
+      return a == b;
+    }
+    if (a is Timestamp && b is DateTime) {
+      return a.toDate() == b;
+    }
+    if (a is DateTime && b is Timestamp) {
+      return a == b.toDate();
+    }
     if (a is List && b is List) {
       if (a.length != b.length) return false;
       for (var i = 0; i < a.length; i++) {
@@ -303,5 +312,159 @@ class FirestoreLessonRepository implements LessonRepository {
       }
       await batch.commit();
     }
+  }
+
+  @override
+  Future<BackupResult> backupLessonPlans({
+    void Function(double progress, String status)? onProgress,
+  }) async {
+    onProgress?.call(0.0, 'Fetching lesson plans data...');
+
+    final sourcePlansRef = _db.collection('lesson_plans_v2');
+    final targetPlansRef = _db.collection('backup_lesson_plans');
+
+    final sourcePlansSnapshot = await sourcePlansRef.get();
+    final targetPlansSnapshot = await targetPlansRef.get();
+
+    final sourceDocs = sourcePlansSnapshot.docs;
+    final targetDocs = targetPlansSnapshot.docs;
+
+    final sourcePlanIds = sourceDocs.map((d) => d.id).toSet();
+    final targetPlanMap = {for (final d in targetDocs) d.id: d};
+
+    int updatedPlans = 0;
+    int updatedSteps = 0;
+    int deletedPlans = 0;
+    int deletedSteps = 0;
+    int skippedCount = 0;
+
+    final totalPlans = sourceDocs.length;
+
+    for (var i = 0; i < totalPlans; i++) {
+      final sourcePlanDoc = sourceDocs[i];
+      final planId = sourcePlanDoc.id;
+      final sourcePlanData = sourcePlanDoc.data();
+      final planTitle = sourcePlanData['title'] as String? ?? planId;
+
+      final currentProgress =
+          0.05 + (0.85 * ((i + 1) / (totalPlans == 0 ? 1 : totalPlans)));
+      onProgress?.call(
+        currentProgress,
+        'Backing up lesson plan (${i + 1}/$totalPlans): $planTitle',
+      );
+
+      final targetPlanDoc = targetPlanMap[planId];
+      final targetPlanData = targetPlanDoc?.data();
+
+      final operations = <void Function(WriteBatch)>[];
+
+      // Compare main document data
+      if (!_sameFirestoreDataMap(sourcePlanData, targetPlanData)) {
+        operations.add(
+          (batch) => batch.set(targetPlansRef.doc(planId), sourcePlanData),
+        );
+        updatedPlans++;
+      } else {
+        skippedCount++;
+      }
+
+      // Check steps subcollection
+      final sourceStepsRef = sourcePlanDoc.reference.collection('steps');
+      final targetStepsRef = targetPlansRef.doc(planId).collection('steps');
+
+      final sourceStepsSnapshot = await sourceStepsRef.get();
+      final targetStepsSnapshot = await targetStepsRef.get();
+
+      final targetStepMap = {
+        for (final doc in targetStepsSnapshot.docs) doc.id: doc,
+      };
+      final sourceStepIds = sourceStepsSnapshot.docs.map((d) => d.id).toSet();
+
+      // Check source steps vs target steps
+      for (final sourceStepDoc in sourceStepsSnapshot.docs) {
+        final stepId = sourceStepDoc.id;
+        final sourceStepData = sourceStepDoc.data();
+        final targetStepDoc = targetStepMap[stepId];
+        final targetStepData = targetStepDoc?.data();
+
+        if (!_sameFirestoreDataMap(sourceStepData, targetStepData)) {
+          operations.add(
+            (batch) => batch.set(targetStepsRef.doc(stepId), sourceStepData),
+          );
+          updatedSteps++;
+        } else {
+          skippedCount++;
+        }
+      }
+
+      // Check deleted steps in target
+      for (final targetStepDoc in targetStepsSnapshot.docs) {
+        if (!sourceStepIds.contains(targetStepDoc.id)) {
+          operations.add((batch) => batch.delete(targetStepDoc.reference));
+          deletedSteps++;
+        }
+      }
+
+      // Commit operations in batches
+      for (var start = 0; start < operations.length; start += _batchLimit) {
+        final batch = _db.batch();
+        final end = (start + _batchLimit).clamp(0, operations.length).toInt();
+        for (final op in operations.sublist(start, end)) {
+          op(batch);
+        }
+        await batch.commit();
+      }
+    }
+
+    // Prune target plans that no longer exist in source
+    onProgress?.call(0.92, 'Checking and pruning deleted lesson plans...');
+    for (final targetPlanDoc in targetDocs) {
+      if (!sourcePlanIds.contains(targetPlanDoc.id)) {
+        final targetStepsSnapshot =
+            await targetPlanDoc.reference.collection('steps').get();
+        final operations = <void Function(WriteBatch)>[];
+        for (final stepDoc in targetStepsSnapshot.docs) {
+          operations.add((batch) => batch.delete(stepDoc.reference));
+        }
+        operations.add((batch) => batch.delete(targetPlanDoc.reference));
+
+        for (var start = 0; start < operations.length; start += _batchLimit) {
+          final batch = _db.batch();
+          final end = (start + _batchLimit).clamp(0, operations.length).toInt();
+          for (final op in operations.sublist(start, end)) {
+            op(batch);
+          }
+          await batch.commit();
+        }
+
+        deletedPlans++;
+        deletedSteps += targetStepsSnapshot.docs.length;
+      }
+    }
+
+    onProgress?.call(1.0, 'Backup completed');
+
+    return BackupResult(
+      totalSourcePlans: totalPlans,
+      updatedPlans: updatedPlans,
+      updatedSteps: updatedSteps,
+      deletedPlans: deletedPlans,
+      deletedSteps: deletedSteps,
+      skippedCount: skippedCount,
+    );
+  }
+
+  bool _sameFirestoreDataMap(
+    Map<String, dynamic>? a,
+    Map<String, dynamic>? b,
+  ) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key)) return false;
+      if (!_sameFirestoreValue(a[key], b[key])) return false;
+    }
+    return true;
   }
 }
