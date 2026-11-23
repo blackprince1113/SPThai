@@ -388,26 +388,11 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
               if (categoryBgUrl != null && categoryBgUrl.isNotEmpty)
                 Positioned.fill(
                   child: IgnorePointer(
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        CachedNetworkImage(
-                          imageUrl: categoryBgUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (context, url, error) =>
-                              const SizedBox.shrink(),
-                        ),
-                        Container(
-                          color: Theme.of(context)
-                              .scaffoldBackgroundColor
-                              .withValues(
-                                alpha: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? 0.88
-                                    : 0.85,
-                              ),
-                        ),
-                      ],
+                    child: CachedNetworkImage(
+                      imageUrl: categoryBgUrl,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) =>
+                          const SizedBox.shrink(),
                     ),
                   ),
                 ),
