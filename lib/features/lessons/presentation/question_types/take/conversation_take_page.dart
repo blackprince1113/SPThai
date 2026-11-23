@@ -6,6 +6,8 @@ import 'package:superthai/ui/widgets/shared_widgets.dart';
 
 class ConversationTakePage extends StatefulWidget {
   final List<ChatMessage> messages;
+  final String leftSpeakerUrl;
+  final String rightSpeakerUrl;
   final int currentIndex;
   final int totalSteps;
   final bool isActive;
@@ -13,6 +15,8 @@ class ConversationTakePage extends StatefulWidget {
   const ConversationTakePage({
     super.key,
     required this.messages,
+    this.leftSpeakerUrl = '',
+    this.rightSpeakerUrl = '',
     required this.currentIndex,
     required this.totalSteps,
     this.isActive = false,
@@ -74,11 +78,10 @@ class _ConversationTakePageState extends State<ConversationTakePage> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final hasMore = _visibleCount < widget.messages.length;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Column(
           children: [
@@ -115,6 +118,8 @@ class _ConversationTakePageState extends State<ConversationTakePage> {
                   final msg = widget.messages[index];
                   return _ChatBubble(
                     message: msg,
+                    leftSpeakerUrl: widget.leftSpeakerUrl,
+                    rightSpeakerUrl: widget.rightSpeakerUrl,
                     onSpeak: () => _speak(msg.text),
                   );
                 },
@@ -140,9 +145,16 @@ class _ConversationTakePageState extends State<ConversationTakePage> {
 
 class _ChatBubble extends StatelessWidget {
   final ChatMessage message;
+  final String leftSpeakerUrl;
+  final String rightSpeakerUrl;
   final VoidCallback onSpeak;
 
-  const _ChatBubble({required this.message, required this.onSpeak});
+  const _ChatBubble({
+    required this.message,
+    this.leftSpeakerUrl = '',
+    this.rightSpeakerUrl = '',
+    required this.onSpeak,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -250,14 +262,21 @@ class _ChatBubble extends StatelessWidget {
   }
 
   Widget _buildAvatar(bool isLeft) {
+    final speakerUrl = isLeft ? leftSpeakerUrl : rightSpeakerUrl;
+    final hasImage = speakerUrl.trim().isNotEmpty;
+
     return CircleAvatar(
       radius: 18,
       backgroundColor: isLeft ? Colors.blue.shade100 : Colors.orange.shade100,
-      child: Icon(
-        isLeft ? Icons.person_rounded : Icons.person_outline_rounded,
-        size: 20,
-        color: isLeft ? Colors.blue : Colors.orange,
-      ),
+      backgroundImage: hasImage ? NetworkImage(speakerUrl.trim()) : null,
+      onBackgroundImageError: hasImage ? (_, __) {} : null,
+      child: !hasImage
+          ? Icon(
+              isLeft ? Icons.person_rounded : Icons.person_outline_rounded,
+              size: 20,
+              color: isLeft ? Colors.blue : Colors.orange,
+            )
+          : null,
     );
   }
 }

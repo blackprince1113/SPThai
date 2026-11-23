@@ -367,10 +367,11 @@ class ProgressService extends ChangeNotifier {
   }
 
   void saveScrollOffset(double offset) {
-    if ((_lastScrollOffset - offset).abs() < 2.0) return;
-    _lastScrollOffset = offset;
+    final clampedOffset = offset < 0.0 ? 0.0 : offset;
+    if ((_lastScrollOffset - clampedOffset).abs() < 2.0) return;
+    _lastScrollOffset = clampedOffset;
     _userMetadataDirty = true;
-    _prefs?.setDouble('last_scroll_offset', offset);
+    _prefs?.setDouble('last_scroll_offset', clampedOffset);
     if (AuthService.instance.currentUser != null) {
       _saveProgressToFirestore();
     }

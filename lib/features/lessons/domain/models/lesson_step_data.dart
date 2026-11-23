@@ -15,6 +15,8 @@ class LessonStepData {
   String imageUrl;
   List<String> choices;
   List<ChatMessage>? conversation;
+  String leftSpeakerUrl;
+  String rightSpeakerUrl;
 
   LessonStepData({
     String? id,
@@ -27,6 +29,8 @@ class LessonStepData {
     this.imageUrl = '',
     List<String>? choices,
     this.conversation,
+    this.leftSpeakerUrl = '',
+    this.rightSpeakerUrl = '',
   }) : id = (id == null || id.isEmpty) ? const Uuid().v4() : id,
        choices = choices ?? [];
 
@@ -44,6 +48,8 @@ class LessonStepData {
     'imageUrl': imageUrl,
     'choices': choices,
     'conversation': conversation?.map((c) => c.toMap()).toList(),
+    'leftSpeakerUrl': leftSpeakerUrl,
+    'rightSpeakerUrl': rightSpeakerUrl,
   };
 
   factory LessonStepData.fromMap(Map<String, dynamic> map) {
@@ -63,6 +69,8 @@ class LessonStepData {
       conversation: (map['conversation'] as List?)
           ?.map((c) => ChatMessage.fromMap(Map<String, dynamic>.from(c)))
           .toList(),
+      leftSpeakerUrl: map['leftSpeakerUrl'] ?? '',
+      rightSpeakerUrl: map['rightSpeakerUrl'] ?? '',
     );
   }
 

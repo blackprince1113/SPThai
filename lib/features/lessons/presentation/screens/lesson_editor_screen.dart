@@ -446,6 +446,8 @@ class _CreateScreenState extends State<CreateScreen> {
       case QuestionType.conversation:
         return ConversationCreatePage(
           initialMessages: selectedStep.conversation ?? [],
+          initialLeftSpeakerUrl: selectedStep.leftSpeakerUrl,
+          initialRightSpeakerUrl: selectedStep.rightSpeakerUrl,
           onEdit: (field, value) => _updateStepForIndex(index, field, value),
         );
       case QuestionType.sentenceExample:
@@ -501,6 +503,12 @@ class _CreateScreenState extends State<CreateScreen> {
             break;
           case 'conversation':
             lessonStep.conversation = List<ChatMessage>.from(value);
+            break;
+          case 'leftSpeakerUrl':
+            lessonStep.leftSpeakerUrl = value;
+            break;
+          case 'rightSpeakerUrl':
+            lessonStep.rightSpeakerUrl = value;
             break;
         }
       }

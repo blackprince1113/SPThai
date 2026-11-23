@@ -4,11 +4,15 @@ import 'package:superthai/ui/widgets/shared_widgets.dart';
 
 class ConversationCreatePage extends StatefulWidget {
   final List<ChatMessage> initialMessages;
+  final String initialLeftSpeakerUrl;
+  final String initialRightSpeakerUrl;
   final Function(String field, dynamic value)? onEdit;
 
   const ConversationCreatePage({
     super.key,
     required this.initialMessages,
+    this.initialLeftSpeakerUrl = '',
+    this.initialRightSpeakerUrl = '',
     this.onEdit,
   });
 
@@ -18,6 +22,8 @@ class ConversationCreatePage extends StatefulWidget {
 
 class _ConversationCreatePageState extends State<ConversationCreatePage> {
   late List<ChatMessage> _messages;
+  late TextEditingController _leftSpeakerController;
+  late TextEditingController _rightSpeakerController;
 
   @override
   void initState() {
@@ -26,6 +32,28 @@ class _ConversationCreatePageState extends State<ConversationCreatePage> {
     if (_messages.isEmpty) {
       _messages.add(ChatMessage(text: "", translation: "", isLeft: true));
     }
+    _leftSpeakerController =
+        TextEditingController(text: widget.initialLeftSpeakerUrl);
+    _rightSpeakerController =
+        TextEditingController(text: widget.initialRightSpeakerUrl);
+  }
+
+  @override
+  void didUpdateWidget(ConversationCreatePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialLeftSpeakerUrl != _leftSpeakerController.text) {
+      _leftSpeakerController.text = widget.initialLeftSpeakerUrl;
+    }
+    if (widget.initialRightSpeakerUrl != _rightSpeakerController.text) {
+      _rightSpeakerController.text = widget.initialRightSpeakerUrl;
+    }
+  }
+
+  @override
+  void dispose() {
+    _leftSpeakerController.dispose();
+    _rightSpeakerController.dispose();
+    super.dispose();
   }
 
   void _addMessage() {
@@ -90,7 +118,32 @@ class _ConversationCreatePageState extends State<ConversationCreatePage> {
             Padding(
               padding: const EdgeInsets.all(24),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const ThaiSectionLabel(
+                    label: "SPEAKER ICONS (OPTIONAL)",
+                    fontSize: 12,
+                    padding: EdgeInsets.only(bottom: 12),
+                  ),
+                  _buildSpeakerUrlCard(
+                    controller: _leftSpeakerController,
+                    label: "Left Speaker Icon",
+                    field: "leftSpeakerUrl",
+                    isLeft: true,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSpeakerUrlCard(
+                    controller: _rightSpeakerController,
+                    label: "Right Speaker Icon",
+                    field: "rightSpeakerUrl",
+                    isLeft: false,
+                  ),
+                  const SizedBox(height: 24),
+                  const ThaiSectionLabel(
+                    label: "MESSAGES",
+                    fontSize: 12,
+                    padding: EdgeInsets.only(bottom: 12),
+                  ),
                   ..._messages.asMap().entries.map((entry) {
                     return _buildMessageEditor(entry.key, entry.value);
                   }),
@@ -117,6 +170,95 @@ class _ConversationCreatePageState extends State<ConversationCreatePage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSpeakerUrlCard({
+    required TextEditingController controller,
+    required String label,
+    required String field,
+    required bool isLeft,
+  }) {
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: primaryColor.withValues(alpha: 0.1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.2 : 0.05,
+            ),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: controller,
+                builder: (context, value, child) {
+                  final url = value.text.trim();
+                  final hasImage = url.isNotEmpty;
+                  return CircleAvatar(
+                    radius: 16,
+                    backgroundColor: isLeft
+                        ? Colors.blue.shade100
+                        : Colors.orange.shade100,
+                    backgroundImage: hasImage ? NetworkImage(url) : null,
+                    onBackgroundImageError: hasImage ? (_, __) {} : null,
+                    child: !hasImage
+                        ? Icon(
+                            isLeft
+                                ? Icons.person_rounded
+                                : Icons.person_outline_rounded,
+                            size: 18,
+                            color: isLeft ? Colors.blue : Colors.orange,
+                          )
+                        : null,
+                  );
+                },
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: primaryColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextFormField(
+            controller: controller,
+            style: TextStyle(
+              fontSize: 14,
+              color: theme.textTheme.bodyLarge?.color,
+            ),
+            decoration: editableInputDecoration(theme, primaryColor).copyWith(
+              hintText: "Image URL...",
+              contentPadding: const EdgeInsets.symmetric(
+                vertical: 10,
+                horizontal: 14,
+              ),
+            ),
+            onChanged: (val) => widget.onEdit?.call(field, val),
+          ),
+        ],
       ),
     );
   }

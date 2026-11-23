@@ -166,6 +166,8 @@ class _LessonScreenState extends State<LessonScreen> {
       case LessonType.conversation:
         return ConversationTakePage(
           messages: step.rawData?.conversation ?? [],
+          leftSpeakerUrl: step.rawData?.leftSpeakerUrl ?? '',
+          rightSpeakerUrl: step.rawData?.rightSpeakerUrl ?? '',
           currentIndex: index,
           totalSteps: total,
           isActive: isActive,

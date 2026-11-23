@@ -218,7 +218,7 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
   void didUpdateWidget(LessonSelectionScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedCategory != widget.selectedCategory) {
-      _hasScrolled = false;
+      _hasScrolled = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (_scrollController.hasClients) {
           _scrollController.jumpTo(0.0);
@@ -260,7 +260,7 @@ class _LessonSelectionScreenState extends State<LessonSelectionScreen> {
 
         if (_lastActiveCategory != activeCategory) {
           _lastActiveCategory = activeCategory;
-          _hasScrolled = false;
+          _hasScrolled = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_scrollController.hasClients) {
               _scrollController.jumpTo(0.0);
@@ -646,7 +646,14 @@ class _LessonMapState extends State<_LessonMap> {
 
   bool _handleScrollNotification(ScrollNotification notification) {
     if (notification is ScrollEndNotification) {
-      widget.progress.saveScrollOffset(widget.scrollController.offset);
+      if (widget.scrollController.hasClients &&
+          widget.scrollController.position.hasContentDimensions) {
+        final currentOffset = widget.scrollController.offset.clamp(
+          0.0,
+          widget.scrollController.position.maxScrollExtent,
+        );
+        widget.progress.saveScrollOffset(currentOffset);
+      }
       _accumulatedOverscroll = 0.0;
     }
 
@@ -661,12 +668,20 @@ class _LessonMapState extends State<_LessonMap> {
     final currentIndex = catList.indexOf(activeCat);
     if (currentIndex == -1) return false;
 
+    // Only allow overscroll category switching when the user is actively dragging with a finger
+    bool isUserDragging = false;
+    if (notification is OverscrollNotification) {
+      isUserDragging = notification.dragDetails != null;
+    } else if (notification is ScrollUpdateNotification) {
+      isUserDragging = notification.dragDetails != null;
+    }
+
     final now = DateTime.now();
     final bool canSwitch =
         _lastCategorySwitchTime == null ||
         now.difference(_lastCategorySwitchTime!).inMilliseconds > 800;
 
-    if (!canSwitch) return false;
+    if (!canSwitch || !isUserDragging) return false;
 
     double overscrollDelta = 0.0;
     if (notification is OverscrollNotification) {
@@ -683,12 +698,15 @@ class _LessonMapState extends State<_LessonMap> {
     if (overscrollDelta != 0.0) {
       _accumulatedOverscroll += overscrollDelta;
 
-      if (_accumulatedOverscroll > 25.0 && currentIndex < catList.length - 1) {
+      const double overscrollThreshold = 100.0;
+      if (_accumulatedOverscroll > overscrollThreshold &&
+          currentIndex < catList.length - 1) {
         _lastCategorySwitchTime = now;
         _accumulatedOverscroll = 0.0;
         final nextCat = catList[currentIndex + 1];
         widget.onSelectCategory!(nextCat);
-      } else if (_accumulatedOverscroll < -25.0 && currentIndex > 0) {
+      } else if (_accumulatedOverscroll < -overscrollThreshold &&
+          currentIndex > 0) {
         _lastCategorySwitchTime = now;
         _accumulatedOverscroll = 0.0;
         final prevCat = catList[currentIndex - 1];
